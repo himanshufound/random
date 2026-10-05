@@ -42,6 +42,7 @@ Every rule can be changed after picking a mode, and each setting has a **?** tha
 ### Extras
 
 - **1,053 word sets in 30 categories** built in, each with similar words for Infiltrators (places, food, movies, brands, Desi life, Bollywood, life in China as a foreigner, Shenzhen · HK · Macau, brainrot, pop culture now, kids, party night and more).
+- **Everyday words mode**: 707 hand-picked easy pairs (both words known to almost anyone, like Coffee / Tea) across every category, for mixed groups and first games. Switch between Everyday and All words in the Words step.
 - **Your own categories**: create them, paste lists (`Coffee | Tea` adds a similar word), or add words to the built-in ones.
 - **AI-generated categories** on any topic:
   - **Built in (free for players)**: one tap. The site calls Google Gemini through a small server function that keeps the site owner's key secret. Needs Vercel hosting (see below).
