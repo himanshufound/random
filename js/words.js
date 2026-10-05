@@ -417,6 +417,46 @@ window.BUILTIN_PACKS = [
     ]
   },
   {
+    id: "brainrot", name: "Brainrot", icon: "🧠",
+    words: [
+      "Skibidi Toilet|Cameraman|Speakerman", "Rizz|Aura|Drip", "Sigma|Alpha|Beta", "Ohio|Florida Man|Cursed",
+      "Fanum Tax|Food Thief|Snack Steal", "Mewing|Looksmaxxing|Mogging", "Aura Points|Aura Farming|Main Character Energy",
+      "Delulu|Copium|Manifesting", "NPC|Main Character|Side Quest", "Six Seven|Skibidi|Sus",
+      "Tralalero Tralala|Bombardiro Crocodilo|Tung Tung Tung Sahur", "Ballerina Cappuccina|Cappuccino Assassino|Chimpanzini Bananini",
+      "Brr Brr Patapim|Lirili Larila|Boneca Ambalabu", "Cooked|Washed|Fumbled", "Yapping|Glazing|Waffling",
+      "No Cap|Fr Fr|On God", "Bussin|Slaps|Hits Different", "It's Giving|Slay|Ate", "Lowkey|Highkey|Deadass",
+      "Mid|Goated|Peak", "W|L|Ratio", "Sus|Impostor|Among Us", "Grimace Shake|Prime Drink|Dubai Chocolate",
+      "Baby Gronk|Rizzler|Livvy Dunne", "Chill Guy|Moo Deng|Pedro Raccoon", "Pookie|Bestie|Bae",
+      "Bed Rotting|Doomscrolling|Touch Grass", "iPad Kid|Brainrot|Screen Time", "Clanker|Robot|AI Slop",
+      "Chopped|Mogged|Fell Off", "Unc|Boomer|Gen Alpha", "Gen Alpha|Gen Z|Millennial", "Sheesh|Bruh|Oof",
+      "Skull Emoji|Crying Emoji|Clown Emoji", "Ick|Red Flag|Beige Flag", "Hard Launch|Soft Launch|Photo Dump",
+      "Edit|Fancam|Stan", "Vine Boom|Bruh Sound|Metal Pipe Falling", "Roman Empire|Girl Dinner|Girl Math",
+      "Very Demure|Very Mindful|Brat Summer", "Labubu|Sonny Angel|Jellycat", "Gatekeeping|Gaslighting|Girlbossing"
+    ]
+  },
+  {
+    id: "popnow", name: "Pop Culture Now", icon: "🔥",
+    words: [
+      "KPop Demon Hunters|Huntrix|Saja Boys", "Golden|Soda Pop|Your Idol", "Labubu|Pop Mart|Blind Box",
+      "Taylor Swift|Sabrina Carpenter|Olivia Rodrigo", "Espresso|Manchild|Please Please Please", "APT.|Die With a Smile|Birds of a Feather",
+      "Bad Bunny|Shakira|Karol G", "Kendrick Lamar|Drake|Travis Scott", "Charli xcx|Chappell Roan|Billie Eilish",
+      "BLACKPINK|BTS|Stray Kids", "Rosé|Lisa|Jennie", "Stranger Things 5|Wednesday Season 2|Squid Game 3",
+      "The White Lotus|Severance|The Bear", "Wicked: For Good|Moana 2|Zootopia 2", "A Minecraft Movie|Chicken Jockey|Lava Chicken",
+      "Superman|Fantastic Four|Thunderbolts", "Sinners|Nosferatu|Weapons", "Avatar: Fire and Ash|Avatar|Dune: Part Two",
+      "Ne Zha 2|Black Myth: Wukong|Kung Fu Panda", "GTA 6|Red Dead Redemption|Cyberpunk 2077", "Nintendo Switch 2|PS5|Steam Deck",
+      "Hollow Knight: Silksong|Hades II|Elden Ring", "Grow a Garden|Steal a Brainrot|99 Nights in the Forest",
+      "Marvel Rivals|Fortnite|Valorant", "IShowSpeed|Kai Cenat|MrBeast", "Beast Games|Squid Game: The Challenge|Survivor",
+      "ChatGPT|Gemini|Claude", "Ghibli AI Trend|Nano Banana|AI Action Figure", "Sora|Veo|AI Video",
+      "World Cup 2026|Club World Cup|Champions League", "Messi|Ronaldo|Mbappé", "Lamine Yamal|Haaland|Vinícius Jr",
+      "Super Bowl Halftime|Met Gala|Grammys", "Oscars|Coachella|Met Gala", "Love Island|Too Hot to Handle|The Bachelor",
+      "Dubai Chocolate|Matcha Latte|Crumbl Cookies", "Matcha|Ube|Pistachio", "Stanley Cup|Owala|Hydro Flask",
+      "Adidas Sambas|Crocs|New Balance 530", "Pickleball|Padel|Run Club", "Ozempic|Protein Shake|Cold Plunge",
+      "Threads|Bluesky|X", "TikTok Shop|Temu|Shein", "Pedro Pascal|Timothée Chalamet|Zendaya",
+      "Tom Holland|Jacob Elordi|Austin Butler", "Coldplay Kiss Cam|Jumbotron|Concert Proposal", "Eras Tour|World Tour|Stadium Concert",
+      "F1 Movie|Drive to Survive|Grand Prix"
+    ]
+  },
+  {
     id: "science", name: "Science & Space", icon: "🚀",
     words: [
       "Planet|Moon|Asteroid", "Mars|Venus|Mercury", "Saturn|Jupiter|Neptune", "Black Hole|Wormhole|Supernova",
