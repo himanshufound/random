@@ -9,13 +9,14 @@
  * POST /api/generate  -> { category, icon, entries: ["Word|Similar", ...] }
  *
  * Optional env vars:
- *   GEMINI_MODEL      model id (default: gemini-flash-latest, then gemini-2.5-flash)
+ *   GEMINI_MODEL      model id to try first (fallbacks: gemini-flash-latest,
+ *                     gemini-3.8-flash, gemini-flash-lite-latest)
  *   ALLOWED_ORIGINS   comma-separated extra origins allowed to call this endpoint
  *   RATE_LIMIT        requests per visitor per 10 minutes (default 12)
  */
 const { buildPrompt, parseAIReply } = require("../js/ai.js");
 
-const DEFAULT_MODELS = ["gemini-flash-latest", "gemini-2.5-flash"];
+const FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-flash-lite-latest"];
 const WINDOW_MS = 10 * 60 * 1000;
 const hits = new Map(); // best-effort per-instance rate limit
 
@@ -60,7 +61,8 @@ function readOptions(body) {
 }
 
 async function callGemini(prompt, key) {
-  const models = process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : DEFAULT_MODELS;
+  // Busy (429/5xx) or retired (404) models fall through to the next one.
+  const models = [...new Set([process.env.GEMINI_MODEL, ...FALLBACK_MODELS].filter(Boolean))];
   let lastError = null;
   for (const model of models) {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
@@ -73,8 +75,13 @@ async function callGemini(prompt, key) {
     });
     let data = null;
     try { data = await res.json(); } catch (e) { /* handled below */ }
-    if (res.status === 404) { lastError = new Error(`Model ${model} isn't available.`); continue; }
-    if (res.status === 429) throw Object.assign(new Error("The free AI quota is used up for now. Try again in a minute, or use the copy-and-paste option."), { status: 429 });
+    if (res.status === 404 || res.status === 429 || res.status >= 500) {
+      lastError = Object.assign(new Error(res.status === 429
+        ? "The free AI quota is used up for now. Try again in a minute, or use the copy-and-paste option."
+        : res.status === 404 ? "No Gemini model is available. The site owner can set GEMINI_MODEL." : "The AI service is busy. Try again shortly."), { status: res.status === 429 ? 429 : 502 });
+      console.error(`Gemini ${model}: HTTP ${res.status}`);
+      continue;
+    }
     if (res.status === 400 || res.status === 403) {
       console.error("Gemini rejected the request:", res.status, data && data.error && data.error.message);
       throw Object.assign(new Error("The AI service rejected the request. The site owner should check the Gemini API key."), { status: 502 });
@@ -93,8 +100,7 @@ async function callGemini(prompt, key) {
     }
     return text;
   }
-  console.error(lastError && lastError.message);
-  throw Object.assign(new Error("No Gemini model is available. The site owner can set GEMINI_MODEL."), { status: 502 });
+  throw lastError || Object.assign(new Error("No Gemini model is available. The site owner can set GEMINI_MODEL."), { status: 502 });
 }
 
 module.exports = async function handler(req, res) {
