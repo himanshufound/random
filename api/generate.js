@@ -6,7 +6,7 @@
  * so the endpoint can only make word lists, not answer arbitrary prompts.
  *
  * GET  /api/generate  -> { available: boolean }
- * POST /api/generate  -> { category, icon, entries: ["Word|Similar", ...] }
+ * POST /api/generate  -> { category, icon, entries: ["Word|Similar", ...], hints: { Word: "..." } }
  *
  * Optional env vars:
  *   GEMINI_MODEL      model id to try first (fallbacks: gemini-flash-latest,
@@ -125,7 +125,11 @@ module.exports = async function handler(req, res) {
       parsed = parseAIReply(text);
     }
     catch (e) { return res.status(502).json({ error: "The AI's answer couldn't be read. Try again." }); }
-    return res.status(200).json({ category: parsed.category || opts.topic, icon: parsed.icon, entries: parsed.entries.slice(0, 60) });
+    const entries = parsed.entries.slice(0, 60);
+    const used = new Set(entries.flatMap((e) => e.split("|")));
+    const hints = {};
+    for (const [w, h] of Object.entries(parsed.hints || {})) if (used.has(w)) hints[w] = h;
+    return res.status(200).json({ category: parsed.category || opts.topic, icon: parsed.icon, entries, hints });
   } catch (e) {
     return res.status(e.status || 400).json({ error: e.message || "Something went wrong." });
   }

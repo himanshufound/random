@@ -24,7 +24,7 @@
     mode: "undercover", autoCounts: true, inf: 1, blank: 0,
     vote: "anon", reveal: "role", who: "notFirst", knowRole: "no", hint: "off", guess: "yes",
     style: "clues", clueRounds: 1, timer: 0, length: "elim", starter: "random",
-    twists: "off", revealMode: "hold", difficulty: "all", sound: "on", avoidRepeats: "on", scoring: "on", theme: "auto"
+    twists: "off", revealMode: "hold", difficulty: "all", wordHints: "on", sound: "on", avoidRepeats: "on", scoring: "on", theme: "auto"
   };
 
   function loadData() {
@@ -39,6 +39,7 @@
       settings: Object.assign({}, DEFAULT_SETTINGS, d.settings || {}),
       packs: d.packs || {},        // custom categories: {id: {id,name,icon,words}}
       extras: d.extras || {},      // words added to built-in categories
+      extraHints: d.extraHints || {}, // explanations for words players added to built-in categories
       enabled: d.enabled || {},    // category on/off
       recent: d.recent || [],
       scores: d.scores || {},
@@ -70,6 +71,15 @@
     if (data.settings.difficulty !== "easy" || c.custom || !c.easy || c.easy === "all") return c.words;
     return c.easy.concat(data.extras[c.id] || []);
   }
+  /* One-line explanation of a word: the category's own (custom/AI packs),
+   * then a category-specific built-in one ("music/Queen"), then the general one. */
+  function hintFor(catId, word) {
+    if (!word) return "";
+    const pack = data.packs[catId];
+    if (pack && pack.hints && pack.hints[word]) return pack.hints[word];
+    const H = window.WORD_HINTS || {};
+    return H[catId + "/" + word] || H[word] || data.extraHints[word] || "";
+  }
   const getCategory = (id) => allCategories().find((c) => c.id === id);
   const isEnabled = (c) => (c.id in data.enabled ? data.enabled[c.id] : !c.off);
   const enabledCategories = () => allCategories().filter((c) => isEnabled(c) && playableWords(c).length);
@@ -95,7 +105,7 @@
     }
     data.recent.push(keyOf(c, entry));
     if (data.recent.length > 250) data.recent = data.recent.slice(-250);
-    return { civ, inf, category: c.name, icon: c.icon || "🗂️" };
+    return { civ, inf, civHint: hintFor(c.id, civ), infHint: hintFor(c.id, inf), category: c.name, icon: c.icon || "🗂️" };
   }
 
   /* ================================================================
@@ -556,6 +566,8 @@
     { section: "Roles" },
     { key: "who", title: "Who can be an impostor?", help: "The first speaker has no clues to copy from, which is brutal for an impostor. Protecting the first one or two seats keeps it fair.",
       options: [["any", "Anyone"], ["notFirst", "Not the first player"], ["notFirstTwo", "Not the first two players"]] },
+    { key: "wordHints", title: "Explain the word on each card", help: "Shows a one-line description under the secret word, like <b>Malatang: spicy soup where you pick your own skewers</b>. Handy when not everyone knows every word. Mr. White still gets nothing.",
+      options: [["on", "Yes, explain it"], ["off", "No, just the word"]] },
     { key: "knowRole", title: "Do Infiltrators know they are Infiltrators?", when: () => roleCounts().inf > 0, help: "<b>Yes:</b> their card says Infiltrator, so they know to blend in. <b>No:</b> everyone just sees a word, and Infiltrators have to work out from the clues that their word is the odd one out.",
       options: [["yes", "Yes, they should know"], ["no", "No, keep it a secret"]] },
     { key: "hint", title: () => `Hint for ${blankName(data.settings)}`, when: () => roleCounts().blank > 0, help: () => `Gives the player with no word a small head start. With <b>letter count</b> they also see how long the word is.`,
@@ -627,7 +639,8 @@
     const note = known
       ? (isInf ? "Your word is close to everyone else's, but not the same. Blend in and don't get caught." : "Find the impostors. Keep your clues subtle so they can't copy you.")
       : "Most players share this word. Someone might not. Is it you?";
-    return `${stamp}<p class="secret-word">${esc(p.word)}</p><p class="card-note">${note}</p>`;
+    const desc = s.wordHints !== "off" ? (isInf ? g.words.infHint : g.words.civHint) : "";
+    return `${stamp}<p class="secret-word${p.word.length > 14 ? " is-long" : ""}">${esc(p.word)}</p>${desc ? `<p class="word-desc">${esc(desc)}</p>` : ""}<p class="card-note">${note}</p>`;
   }
 
   function revealCard(p, g) {
@@ -825,8 +838,8 @@
           ${g.twist === "extra" ? `<p class="twist-note">Twist: there was a secret extra Infiltrator this game.</p>` : ""}
         </section>
         <section class="card words-reveal">
-          <div><p class="label">Civilian word</p><p class="word-big">${esc(g.words.civ)}</p></div>
-          ${g.players.some((p) => p.role === "infiltrator") ? `<div><p class="label">Infiltrator word</p><p class="word-big is-inf">${esc(g.words.inf)}</p></div>` : ""}
+          <div><p class="label">Civilian word</p><p class="word-big">${esc(g.words.civ)}</p>${g.words.civHint ? `<p class="muted small">${esc(g.words.civHint)}</p>` : ""}</div>
+          ${g.players.some((p) => p.role === "infiltrator") ? `<div><p class="label">Infiltrator word</p><p class="word-big is-inf">${esc(g.words.inf)}</p>${g.words.infHint ? `<p class="muted small">${esc(g.words.infHint)}</p>` : ""}</div>` : ""}
         </section>
         <section class="card">
           <h2 class="h2">Who was who</h2>
@@ -878,7 +891,7 @@
     if (!c) { ui.screen = "packs"; return SCREENS.packs(); }
     const extras = c.custom ? c.words : (data.extras[c.id] || []);
     const base = c.custom ? [] : c.base;
-    const wordChip = (e, removable) => { const [w, ...sim] = parseEntry(e); return `<li class="word-chip"><span><b>${esc(w)}</b>${sim.length ? `<span class="muted"> · ${sim.map(esc).join(", ")}</span>` : ""}</span>${removable ? `<button class="icon-btn small" data-act="removeWord" data-w="${esc(e)}" aria-label="Remove ${esc(w)}">✕</button>` : ""}</li>`; };
+    const wordChip = (e, removable) => { const [w, ...sim] = parseEntry(e); return `<li class="word-chip" title="${esc([w, ...sim].map((x) => hintFor(c.id, x) ? x + ": " + hintFor(c.id, x) : "").filter(Boolean).join("\n"))}"><span><b>${esc(w)}</b>${sim.length ? `<span class="muted"> · ${sim.map(esc).join(", ")}</span>` : ""}</span>${removable ? `<button class="icon-btn small" data-act="removeWord" data-w="${esc(e)}" aria-label="Remove ${esc(w)}">✕</button>` : ""}</li>`; };
     return `${topbar(c.name, "back")}
       <main class="page">
         ${c.custom ? `<section class="card">
@@ -961,7 +974,7 @@
       <div class="row-between"><h2 class="h2">${r.entries.length} words ready</h2><span class="tag">review</span></div>
       ${target ? "" : `<div class="row-gap"><input class="input input-icon" id="ai-icon" data-input="aiResIcon" value="${esc(r.icon)}" maxlength="4" aria-label="Icon">
         <input class="input" id="ai-name" data-input="aiResName" value="${esc(r.category)}" placeholder="Category name" maxlength="30" aria-label="Category name"></div>`}
-      <ul class="word-list">${r.entries.map((e, i) => { const [w, ...sim] = parseEntry(e); return `<li class="word-chip"><span><b>${esc(w)}</b>${sim.length ? `<span class="muted"> · ${sim.map(esc).join(", ")}</span>` : ""}</span><button class="icon-btn small" data-act="aiDrop" data-i="${i}" aria-label="Remove">✕</button></li>`; }).join("")}</ul>
+      <ul class="word-list">${r.entries.map((e, i) => { const [w, ...sim] = parseEntry(e); const h = r.hints && r.hints[w]; return `<li class="word-chip"><span><b>${esc(w)}</b>${sim.length ? `<span class="muted"> · ${sim.map(esc).join(", ")}</span>` : ""}${h ? `<br><span class="muted small">${esc(h)}</span>` : ""}</span><button class="icon-btn small" data-act="aiDrop" data-i="${i}" aria-label="Remove">✕</button></li>`; }).join("")}</ul>
       <button class="btn btn-primary" data-act="aiSave">${target ? `Add to ${esc(target.name)}` : "Save as new category"}</button>
     </section>`;
   }
@@ -1352,11 +1365,12 @@
         const c = getCategory(a.target);
         const existing = new Set(c.words.map((e) => parseEntry(e)[0].toLowerCase()));
         const fresh = r.entries.filter((e) => !existing.has(parseEntry(e)[0].toLowerCase()));
-        if (c.custom) data.packs[c.id].words.push(...fresh); else data.extras[c.id] = (data.extras[c.id] || []).concat(fresh);
+        if (c.custom) { data.packs[c.id].words.push(...fresh); data.packs[c.id].hints = Object.assign(data.packs[c.id].hints || {}, r.hints || {}); }
+        else { data.extras[c.id] = (data.extras[c.id] || []).concat(fresh); Object.assign(data.extraHints, r.hints || {}); }
         save(); ui.packId = c.id; go("pack"); toast(`Added ${plural(fresh.length, "word")}`);
       } else {
         const id = "c_" + uid();
-        data.packs[id] = { id, name: (r.category || a.topic || "AI category").slice(0, 30), icon: r.icon || "✨", words: r.entries };
+        data.packs[id] = { id, name: (r.category || a.topic || "AI category").slice(0, 30), icon: r.icon || "✨", words: r.entries, hints: r.hints || {} };
         data.enabled[id] = true; save(); ui.packId = id; go("pack"); toast(`Created “${data.packs[id].name}”`);
       }
     },
@@ -1395,7 +1409,7 @@
   function scrollToResult() { const el = document.getElementById("ai-result") || document.querySelector(".error"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }
 
   function exportJSON(cats) {
-    return JSON.stringify({ app: "infiltrator", version: 1, categories: cats.map((c) => ({ name: c.name, icon: c.icon, words: c.words })) }, null, 1);
+    return JSON.stringify({ app: "infiltrator", version: 1, categories: cats.map((c) => ({ name: c.name, icon: c.icon, words: c.words, hints: c.hints || {} })) }, null, 1);
   }
   function importAny(text) {
     let added = 0;
@@ -1406,7 +1420,9 @@
           const words = (c.words || []).map((w) => (typeof w === "string" ? parseEntry(w).join("|") : [w.word].concat(w.similar || []).join("|"))).filter(Boolean);
           if (!words.length) return;
           const id = "c_" + uid();
-          data.packs[id] = { id, name: String(c.name || "Imported").slice(0, 30), icon: String(c.icon || "📦").slice(0, 4), words };
+          const hints = {};
+          if (c.hints && typeof c.hints === "object") for (const [k, v] of Object.entries(c.hints)) if (typeof v === "string") hints[String(k).slice(0, 60)] = v.slice(0, 120);
+          data.packs[id] = { id, name: String(c.name || "Imported").slice(0, 30), icon: String(c.icon || "📦").slice(0, 4), words, hints };
           data.enabled[id] = true; added++;
         });
       }
@@ -1415,7 +1431,7 @@
       try {
         const r = AI.parseAIReply(text);
         const id = "c_" + uid();
-        data.packs[id] = { id, name: (r.category || "Imported").slice(0, 30), icon: r.icon || "📦", words: r.entries };
+        data.packs[id] = { id, name: (r.category || "Imported").slice(0, 30), icon: r.icon || "📦", words: r.entries, hints: r.hints || {} };
         data.enabled[id] = true; added = 1;
       } catch (e) { return toast(e.message || "Couldn't read that."); }
     }
