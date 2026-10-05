@@ -371,6 +371,52 @@ window.BUILTIN_PACKS = [
     ]
   },
   {
+    id: "china", name: "Laowai Life in China", icon: "🏮",
+    words: [
+      "WeChat Pay|Alipay|UnionPay", "WeChat|QQ|WhatsApp", "VPN|Great Firewall|Proxy", "Didi|Taxi|Uber",
+      "Meituan|Ele.me|Delivery Rider", "Taobao|Pinduoduo|JD.com", "Xiaohongshu|Douyin|Bilibili", "Douyin|TikTok|Kuaishou",
+      "Hot Pot|Malatang|Dry Pot", "Dim Sum|Yum Cha|Dumplings", "Xiaolongbao|Jiaozi|Baozi", "Jianbing|Roujiamo|Baozi",
+      "Peking Duck|Roast Goose|Char Siu", "Congee|Rice Noodle Roll|Wonton Noodles", "Bubble Tea|Heytea|Mixue",
+      "Luckin Coffee|Starbucks|Cotti Coffee", "Baijiu|Tsingtao Beer|Rice Wine", "KTV|Bar Street|Club",
+      "Jubensha|Escape Room|Werewolf", "Chopsticks|Soup Spoon|Toothpick", "Squat Toilet|Western Toilet|Public Toilet",
+      "Hot Water|Warm Water|Thermos", "High-Speed Rail|Metro|Sleeper Train", "Shared Bike|E-bike|Scooter",
+      "Power Bank Rental|Charging Station|Phone Charger", "Delivery Locker|Express Station|Courier",
+      "QR Code|Mini Program|Scan to Pay", "Residence Permit|Visa|Passport", "Police Registration|Visa Extension|Immigration Office",
+      "HSK Exam|Chinese Class|Language Partner", "Pinyin|Chinese Characters|Tones", "Mandarin|Cantonese|Hokkien",
+      "Ni Hao|Xie Xie|Mei Wenti", "Laowai|Expat|Exchange Student", "Dorm|International Student Office|Campus Gate",
+      "Canteen|Food Court|Night Market", "Photo Request from Locals|Selfie Stick|Tour Group",
+      "Spring Festival|Lantern Festival|Mid-Autumn Festival", "Red Envelope|Firecrackers|Spring Couplets",
+      "Mooncake|Zongzi|Tangyuan", "Golden Week|Chunyun|Long Weekend", "Square Dancing|Tai Chi|Morning Exercise",
+      "Typhoon|Rainstorm|Humidity", "Haggling|Group Buying|Livestream Shopping", "Sam's Club|Hema|Walmart",
+      "FamilyMart|7-Eleven|Lawson", "Chinese Medicine|Acupuncture|Cupping", "Kung Fu|Wushu|Shaolin",
+      "Mahjong|Chinese Chess|Dou Dizhu", "Panda|Red Panda|Golden Monkey", "Great Wall|Forbidden City|Terracotta Army",
+      "Dragon Dance|Lion Dance|Dragon Boat Race", "Chinese Name|English Name|Nickname", "Group Chat|WeChat Moments|Voice Message",
+      "Pleco|Translation App|Pinyin Keyboard", "Facial Recognition|Fingerprint|ID Card"
+    ]
+  },
+  {
+    id: "gba", name: "Shenzhen · HK · Macau", icon: "🌉",
+    words: [
+      "Shenzhen|Guangzhou|Dongguan", "Hong Kong|Macau|Shenzhen", "Zhuhai|Macau|Hengqin",
+      "Futian Checkpoint|Lo Wu|Shenzhen Bay Port", "Border Crossing|Customs|Immigration", "Octopus Card|Shenzhen Tong|AlipayHK",
+      "MTR|Shenzhen Metro|Light Rail", "Star Ferry|Ding Ding Tram|Peak Tram", "Victoria Peak|Lion Rock|Dragon's Back",
+      "Victoria Harbour|Avenue of Stars|Symphony of Lights", "Lan Kwai Fong|Soho|Wan Chai",
+      "Mong Kok|Temple Street Night Market|Ladies' Market", "Causeway Bay|Tsim Sha Tsui|Central",
+      "Hong Kong Disneyland|Ocean Park|Window of the World", "Big Buddha|Ngong Ping Cable Car|Lantau Island",
+      "Cheung Chau|Lamma Island|Peng Chau", "Venetian Macao|Casino|Cotai Strip", "Ruins of St. Paul's|Senado Square|Macau Tower",
+      "Portuguese Egg Tart|Pork Chop Bun|Almond Cookie", "Hong Kong Milk Tea|Yuenyeung|Lemon Tea",
+      "Pineapple Bun|Egg Waffle|Egg Tart", "Cha Chaan Teng|Dai Pai Dong|Dim Sum Restaurant", "Roast Goose|Char Siu|Siu Yuk",
+      "Curry Fish Balls|Siu Mai|Fish Balls", "Hong Kong–Zhuhai–Macau Bridge|Tsing Ma Bridge|Shenzhen Bay Bridge",
+      "High-Speed Rail to Hong Kong|Cross-Border Bus|Ferry to Macau", "Canton Tower|Ping An Finance Centre|IFC",
+      "Huaqiangbei|Sham Shui Po|Golden Computer Arcade", "Shenzhen Bay Park|Lianhuashan Park|Shekou",
+      "OCT Loft|Dafen Oil Painting Village|Shuiwei Village", "Dameisha|Xiaomeisha|Repulse Bay",
+      "Duty Free|Outlet Mall|Shopping Spree", "Hong Kong Sevens|Happy Valley Races|Dragon Boat Race",
+      "Typhoon Signal 8|Black Rainstorm|Red Rainstorm", "Two Phones|Two SIM Cards|Roaming",
+      "HKD|RMB|MOP", "Cantonese|Mandarin|English", "Chungking Mansions|Mirador Mansion|Hostel",
+      "Stanley Market|Repulse Bay|Shek O", "Chimelong Safari Park|Chimelong Ocean Kingdom|Zoo", "Canton Fair|Trade Show|Expo"
+    ]
+  },
+  {
     id: "science", name: "Science & Space", icon: "🚀",
     words: [
       "Planet|Moon|Asteroid", "Mars|Venus|Mercury", "Saturn|Jupiter|Neptune", "Black Hole|Wormhole|Supernova",

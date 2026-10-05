@@ -41,7 +41,7 @@ Every rule can be changed after picking a mode, and each setting has a **?** tha
 
 ### Extras
 
-- **866 word sets in 26 categories** built in, each with similar words for Infiltrators (places, food, movies, brands, Desi life, Bollywood, kids, party night and more).
+- **963 word sets in 28 categories** built in, each with similar words for Infiltrators (places, food, movies, brands, Desi life, Bollywood, life in China as a foreigner, Shenzhen · HK · Macau, kids, party night and more).
 - **Your own categories**: create them, paste lists (`Coffee | Tea` adds a similar word), or add words to the built-in ones.
 - **AI-generated categories** on any topic:
   - **Built in (free for players)**: one tap. The site calls Google Gemini through a small server function that keeps the site owner's key secret. Needs Vercel hosting (see below).
