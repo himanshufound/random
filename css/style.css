@@ -105,6 +105,7 @@ h1, h2, h3 { margin: 0; text-wrap: balance; }
 .btn-ghost { background: var(--surface); border-color: var(--line); }
 .btn-quiet { background: transparent; color: var(--muted); border-color: transparent; text-decoration: underline; text-underline-offset: 3px; min-height: 40px; padding-inline: 8px; }
 .btn-danger { background: transparent; border-color: var(--spy); color: var(--spy); }
+.btn-kamikaze { background: var(--spy); color: #fff; flex: 0 0 auto !important; padding-inline: 16px; }
 .btn-xl { min-height: 64px; font-size: 20px; font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* ---------- bottom dock ---------- */

@@ -24,7 +24,7 @@
     mode: "undercover", autoCounts: true, inf: 1, blank: 0,
     vote: "anon", reveal: "role", who: "notFirst", knowRole: "no", hint: "off", guess: "yes",
     style: "clues", clueRounds: 1, timer: 0, length: "elim", starter: "random",
-    twists: "off", revealMode: "hold", difficulty: "all", wordHints: "on", sound: "on", avoidRepeats: "on", scoring: "on", theme: "auto"
+    twists: "off", revealMode: "hold", difficulty: "all", wordHints: "on", kamikaze: "on", sound: "on", avoidRepeats: "on", scoring: "on", theme: "auto"
   };
 
   function loadData() {
@@ -241,7 +241,7 @@
     const g = G();
     const p = playerById(id);
     p.alive = false; p.outRound = g.round;
-    g.lastOut = id; g.guess = null; ui.guessText = "";
+    g.lastOut = id; g.guess = null; ui.guessText = ""; g.outCause = "vote"; g.kami = null;
     if (g.twist === "none") return finish("twist");
     g.phase = "reveal";
     save(); render();
@@ -254,8 +254,44 @@
     nextRound();
   }
 
+  /* Who gets a last-chance guess at the civilians' word when they go out:
+   * Mr. White / Spy when the setting allows it, and any impostor caught by a kamikaze. */
+  function canGuess(p) {
+    const g = G();
+    if (p.role === "blank" && g.settings.guess === "yes") return true;
+    return g.outCause === "kamikaze" && !!g.kami && g.kami.correct && p.id === g.kami.target && p.role !== "civilian";
+  }
+
+  /* Kamikaze: one player bets their life on an accusation. Right → the impostor is out
+   * (and may guess the word). Wrong → the kamikaze player is out instead. */
+  function resolveKamikaze(byId, targetId) {
+    const g = G();
+    const by = playerById(byId), target = playerById(targetId);
+    const correct = target.role !== "civilian";
+    const victim = correct ? target : by;
+    victim.alive = false; victim.outRound = g.round;
+    g.kami = { by: byId, target: targetId, correct, stage: "done" };
+    g.lastOut = victim.id; g.outCause = "kamikaze"; g.guess = null; ui.guessText = "";
+    if (correct) (g.kamiHeroes = g.kamiHeroes || []).push(byId);
+    if (g.twist === "none") return finish("twist");
+    g.phase = "kamiReveal";
+    save(); render();
+    sfx(correct ? "impostorOut" : "civilianOut"); vibrate([80, 60, 200]);
+  }
+
+  function afterKamikaze() {
+    const g = G();
+    const p = playerById(g.lastOut);
+    if (g.settings.length === "single" && p.role !== "civilian") return finish("civilians");
+    const w = checkWinner();
+    if (w) return finish(w);
+    g.phase = "play"; g.kami = null; g.outCause = null;
+    save(); render();
+  }
+
   function afterElimination() {
     const g = G();
+    if (g.outCause === "kamikaze") return afterKamikaze();
     const p = playerById(g.lastOut);
     if (g.settings.length === "single") return finish(p.role === "civilian" ? "impostors" : "civilians");
     const w = checkWinner();
@@ -274,7 +310,7 @@
     save(); render();
   }
 
-  const POINTS = { civilian: 2, infiltrator: 10, blank: 6, blankGuess: 12, twist: 1 };
+  const POINTS = { civilian: 2, infiltrator: 10, blank: 6, blankGuess: 12, twist: 1, kamikaze: 3 };
 
   function finish(winner, byId, note) {
     const g = G();
@@ -287,6 +323,7 @@
       if (winner === "impostors" && p.role === "blank") v = POINTS.blank;
       if (winner === "mrwhite" && p.id === byId) v = POINTS.blankGuess;
       if (winner === "twist" && p.id !== g.lastOut) v = POINTS.twist;
+      (g.kamiHeroes || []).forEach((id) => { if (id === p.id) v += POINTS.kamikaze; });
       pts[p.id] = v;
     });
     g.result = { winner, byId: byId || null, note: note || "", points: pts };
@@ -561,6 +598,8 @@
     { section: "Voting" },
     { key: "vote", title: "How do you prefer to vote?", help: "<b>Anonymous:</b> the phone goes around and everyone taps their vote in secret, then the app counts. <b>Real-life:</b> everyone points at a suspect on the count of 3 and you tap who got the most votes. Faster, louder.",
       options: [["anon", "Anonymous vote", "Pass the phone"], ["live", "Real-life vote", "Faster"]] },
+    { key: "kamikaze", title: "Kamikaze button", help: "During a round, any player can tap <b>💥 Kamikaze</b> and bet their life on an accusation. If the suspect is an impostor, the impostor is out straight away and gets one last guess at the civilians' word (a correct guess steals the win). If the suspect is a Civilian, the kamikaze player is out instead. A correct kamikaze is worth +3 points.",
+      options: [["on", "On"], ["off", "Off"]] },
     { key: "reveal", title: "When someone is voted out…", help: "Revealing the role gives civilians information. Keeping it secret makes later rounds much more paranoid.",
       options: [["role", "Reveal their role"], ["hidden", "Keep it secret"]] },
     { section: "Roles" },
@@ -618,7 +657,7 @@
   SCREENS.game = () => {
     const g = G();
     if (!g) return SCREENS.home();
-    const fn = { deal: gameDeal, play: gamePlay, vote: gameVote, tally: gameTally, reveal: gameReveal, guess: gameGuess, guessResult: gameGuessResult, end: gameEnd }[g.phase];
+    const fn = { deal: gameDeal, play: gamePlay, vote: gameVote, tally: gameTally, reveal: gameReveal, guess: gameGuess, guessResult: gameGuessResult, kamikaze: gameKamikaze, kamiReveal: gameKamiReveal, end: gameEnd }[g.phase];
     return fn();
   };
 
@@ -702,6 +741,7 @@
         <button class="btn btn-quiet" data-act="peek">Forgot your word? Peek again</button>
       </main>
       <footer class="dock"><div class="dock-row">
+        ${s.kamikaze !== "off" && alivePlayers().length > 2 ? `<button class="btn btn-kamikaze" data-act="kamikaze" aria-label="Kamikaze: bet your life on an accusation">💥 Kamikaze</button>` : ""}
         <button class="btn btn-primary" data-act="startVote">Time to vote</button>
       </div></footer>`;
   }
@@ -770,18 +810,64 @@
     const g = G();
     const p = playerById(g.lastOut);
     const s = g.settings;
-    const showRole = s.reveal === "role" || (p.role === "blank" && s.guess === "yes");
-    const canGuess = p.role === "blank" && s.guess === "yes";
+    const guessing = canGuess(p);
+    const showRole = s.reveal === "role" || guessing;
     return `${topbar("Voted out", null)}
       <main class="page deal">
         <p class="eyebrow center">The group has decided</p>
         <h2 class="pass-name">${esc(p.name)}</h2>
         ${showRole ? `<p class="verdict verdict-${p.role}">${p.role === "civilian" ? "was a Civilian" : "was " + (p.role === "infiltrator" ? "an Infiltrator" : blankName(s))}</p>
-          ${p.role === "civilian" ? `<p class="muted center">Ouch. An innocent goes down.</p>` : `<p class="muted center">${canGuess ? "Not so fast. They get one last chance." : "Nice catch!"}</p>`}`
+          ${p.role === "civilian" ? `<p class="muted center">Ouch. An innocent goes down.</p>` : `<p class="muted center">${guessing ? "Not so fast. They get one last chance." : "Nice catch!"}</p>`}`
           : `<p class="verdict verdict-hidden">is out</p><p class="muted center">Their role stays secret. Keep your eyes open.</p>`}
       </main>
-      <footer class="dock"><div class="dock-row">${canGuess
-        ? `<button class="btn btn-primary" data-act="toGuess">${esc(blankName(s))}, make your guess</button>`
+      <footer class="dock"><div class="dock-row">${guessing
+        ? `<button class="btn btn-primary" data-act="toGuess">${esc(p.name)}, make your guess</button>`
+        : `<button class="btn btn-primary" data-act="afterElim">Continue</button>`}</div></footer>`;
+  }
+
+  function gameKamikaze() {
+    const g = G();
+    const k = g.kami;
+    const alive = alivePlayers();
+    if (k.stage === "who") {
+      return `${topbar("💥 Kamikaze", "kamiCancel")}
+        <main class="page">
+          <section class="card brief"><p class="eyebrow">Bet your life</p>
+            <p>Accuse one player of being an impostor. <b>Right:</b> they're out on the spot and get one last guess at the word. <b>Wrong:</b> you're out instead.</p></section>
+          <p class="eyebrow">Who's going kamikaze?</p>
+          <div class="vote-list">${alive.map((p) => `<button class="vote-btn" data-act="kamiBy" data-id="${p.id}">${esc(p.name)}</button>`).join("")}</div>
+        </main>`;
+    }
+    const by = playerById(k.by);
+    return `${topbar("💥 Kamikaze", "kamiCancel")}
+      <main class="page">
+        <p class="eyebrow">${esc(by.name)}, who is the impostor?</p>
+        <div class="vote-list">${alive.filter((p) => p.id !== by.id).map((p) => `<button class="vote-btn" data-act="kamiTarget" data-id="${p.id}">${esc(p.name)}</button>`).join("")}</div>
+        <button class="btn btn-quiet" data-act="kamiBack">Pick a different kamikaze</button>
+      </main>`;
+  }
+
+  function gameKamiReveal() {
+    const g = G();
+    const s = g.settings;
+    const k = g.kami;
+    const by = playerById(k.by), target = playerById(k.target);
+    const victim = playerById(g.lastOut);
+    const guessing = canGuess(victim);
+    const roleText = (p) => (p.role === "infiltrator" ? "an Infiltrator" : blankName(s));
+    const showByRole = s.reveal === "role" || guessing;
+    return `${topbar("💥 Kamikaze", null)}
+      <main class="page deal">
+        <p class="eyebrow center">${esc(by.name)} bet their life that</p>
+        <h2 class="pass-name">${esc(target.name)}</h2>
+        ${k.correct
+          ? `<p class="verdict verdict-${target.role}">is ${roleText(target)}!</p>
+             <p class="muted center">Direct hit. ${esc(target.name)} is out${guessing ? " but gets one last guess at the word." : "."}</p>`
+          : `<p class="verdict verdict-civilian">is a Civilian</p>
+             <p class="muted center">Wrong call. <b>${esc(by.name)}</b> goes down instead${showByRole ? ` and was <b>${by.role === "civilian" ? "a Civilian" : roleText(by)}</b>` : ""}.</p>`}
+      </main>
+      <footer class="dock"><div class="dock-row">${guessing
+        ? `<button class="btn btn-primary" data-act="toGuess">${esc(victim.name)}, make your guess</button>`
         : `<button class="btn btn-primary" data-act="afterElim">Continue</button>`}</div></footer>`;
   }
 
@@ -796,6 +882,11 @@
           <input class="input input-big" id="guess-input" data-input="guessText" value="${esc(ui.guessText)}" placeholder="Your guess" autocomplete="off" autocapitalize="words" maxlength="60">
           <button class="btn btn-primary" type="submit">Lock in my guess</button>
         </form>
+        <section class="card">
+          <p class="strong">Guessing out loud instead?</p>
+          <p class="muted small">${esc(p.name)} says their guess to the group. Civilians decide if it's right.</p>
+          <div class="dock-row"><button class="btn btn-ghost" data-act="guessIrl" data-ok="1">✓ They got it</button><button class="btn btn-ghost" data-act="guessIrl" data-ok="0">✗ Wrong</button></div>
+        </section>
       </main>`;
   }
 
@@ -823,7 +914,7 @@
     const titles = {
       civilians: ["Civilians win", "Every impostor has been caught."],
       impostors: ["Impostors win", r.note || "They blended in and took over."],
-      mrwhite: [`${blankName(s)} wins`, `${by ? by.name : ""} guessed the word with nothing to go on.`],
+      mrwhite: [`${by ? roleLabel(by.role, s) : blankName(s)} wins`, by && by.role === "infiltrator" ? `${by.name} guessed the civilians' word and stole the win.` : `${by ? by.name : ""} guessed the word with nothing to go on.`],
       twist: ["Twist!", "There were no impostors at all. You were suspicious of each other for nothing."]
     }[r.winner];
     const board = data.scores[g.scope] || {};
@@ -846,7 +937,7 @@
           <ul class="recap">${g.players.map((p) => `<li>
             <span class="recap-name">${esc(p.name)}</span>
             <span class="role-chip role-${p.role}">${roleLabel(p.role, s)}</span>
-            <span class="recap-status">${p.alive ? "survived" : "out in round " + p.outRound}</span>
+            <span class="recap-status">${p.alive ? "survived" : "out in round " + p.outRound}${(g.kamiHeroes || []).includes(p.id) ? " · 💥 kamikaze hero" : ""}</span>
             ${s.scoring === "on" ? `<span class="recap-pts">${r.points[p.id] ? "+" + r.points[p.id] : "0"}</span>` : ""}
           </li>`).join("")}</ul>
         </section>
@@ -1030,6 +1121,7 @@
             <li><span>Civilians win</span><b>+${POINTS.civilian}</b> each civilian</li>
             <li><span>Impostors win</span><b>+${POINTS.infiltrator}</b> each Infiltrator, <b>+${POINTS.blank}</b> each Mr. White</li>
             <li><span>Mr. White guesses the word</span><b>+${POINTS.blankGuess}</b></li>
+            <li><span>Correct kamikaze</span><b>+${POINTS.kamikaze}</b> bonus for the brave one</li>
             <li><span>No-impostor twist</span><b>+${POINTS.twist}</b> everyone except whoever got voted out</li>
           </ul>
           <p class="muted small">Create groups from the Players step of a new game.</p>
@@ -1069,6 +1161,15 @@
       <section class="card">
         <h2 class="h2">Ways to play a round</h2>
         <dl class="roles">${Object.values(STYLES).map((s) => `<div><dt class="strong">${s.name}</dt><dd>${s.how}</dd></div>`).join("")}</dl>
+      </section>
+      <section class="card">
+        <h2 class="h2">💥 Kamikaze</h2>
+        <p>Sure you know who the impostor is? During any round, tap <b>Kamikaze</b>, pick yourself and point at your suspect. You're betting your life:</p>
+        <ul class="bullets">
+          <li><b>Right:</b> the impostor is out on the spot. They get one last guess at the civilians' word, typed on the phone or said out loud. A correct guess steals the win.</li>
+          <li><b>Wrong:</b> the suspect was a Civilian, so <b>you</b> are out instead.</li>
+          <li>Works in every mode. In Spy (one vote) games, a successful kamikaze ends the game just like catching the Spy in the vote.</li>
+        </ul>
       </section>
       <section class="card">
         <h2 class="h2">Who wins?</h2>
@@ -1283,6 +1384,20 @@
     randomTie: () => { const { top } = tally(); eliminate(pick(top)); },
     noElim: () => noElimination(),
     toGuess: () => { G().phase = "guess"; save(); render(); },
+    guessIrl: (el) => {
+      const g = G(); const ok = el.dataset.ok === "1";
+      g.guess = { text: "said out loud", correct: ok };
+      if (ok) return finish("mrwhite", g.lastOut);
+      g.phase = "guessResult"; save(); render(); sfx("civilianOut");
+    },
+    kamikaze: () => { const g = G(); stopTimer(); g.kami = { stage: "who", by: null, target: null }; g.phase = "kamikaze"; save(); render(); },
+    kamiCancel: () => { const g = G(); g.kami = null; g.phase = "play"; save(); render(); },
+    kamiBack: () => { const g = G(); g.kami.stage = "who"; g.kami.by = null; save(); render(); },
+    kamiBy: (el) => { const g = G(); g.kami.by = el.dataset.id; g.kami.stage = "target"; save(); render(); },
+    kamiTarget: (el) => {
+      const g = G(); const by = playerById(g.kami.by), t = playerById(el.dataset.id);
+      confirmBox(`${by.name} goes kamikaze on ${t.name}?`, `If ${esc(t.name)} is an impostor, they're out. If ${esc(t.name)} is a Civilian, <b>${esc(by.name)}</b> is out instead. No take-backs.`, "💥 Do it", () => resolveKamikaze(by.id, t.id), true);
+    },
     afterElim: () => afterElimination(),
     blankWins: () => finish("mrwhite", G().lastOut),
 
