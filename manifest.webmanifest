@@ -1,0 +1,12 @@
+{
+  "name": "Infiltrator",
+  "short_name": "Infiltrator",
+  "description": "Pass-the-phone party game of secret words and bluffing.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1320",
+  "theme_color": "#0e1320",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
