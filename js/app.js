@@ -906,8 +906,15 @@
           </div>
         </section>
 
+        ${a.server === "ready" ? `<section class="card result">
+          <div class="row-between"><h2 class="h2">Generate</h2><span class="tag">free · built in</span></div>
+          <p class="muted small">Makes the whole category in about 10 seconds. Review it before saving.</p>
+          <button class="btn btn-primary btn-xl" data-act="aiBuiltIn" ${a.busy ? "disabled" : ""}>${a.busy ? "Generating…" : "✨ Generate words"}</button>
+        </section>` : a.server === "checking" ? `<p class="muted small center">Checking for the built-in generator…</p>`
+          : a.server === "nokey" ? `<p class="muted small">The built-in generator isn't switched on for this site yet (no Gemini key). Use the free copy-and-paste option below.</p>` : ""}
+
         <section class="card">
-          <div class="row-between"><h2 class="h2">Free: use any chatbot</h2><span class="tag">no key needed</span></div>
+          <div class="row-between"><h2 class="h2">${a.server === "ready" ? "Or use any chatbot" : "Free: use any chatbot"}</h2><span class="tag">no key needed</span></div>
           <ol class="howto-steps">
             <li>Copy the prompt. <button class="btn btn-ghost" data-act="aiCopy">Copy prompt</button></li>
             <li>Paste it into ChatGPT, Claude, Gemini or any AI chat.
@@ -919,16 +926,17 @@
           <details class="prompt-peek"><summary>See the prompt</summary><pre id="ai-prompt">${esc(AI.buildPrompt(aiOpts()))}</pre></details>
         </section>
 
-        <section class="card">
-          <div class="row-between"><h2 class="h2">Instant: your Claude API key</h2>${helpBtn("apikey")}</div>
+        <details class="card advanced" ${data.ai.key ? "open" : ""}>
+          <summary class="strong">Advanced: use your own Claude API key</summary>
+          <div class="row-between"><p class="muted small">Calls Claude straight from this device.</p>${helpBtn("apikey")}</div>
           ${helpText("apikey", "Get a key at console.anthropic.com. It's saved only in this browser and sent only to Anthropic's API, never anywhere else. Each generation costs a few cents. Don't save a key on a shared phone.")}
           <input class="input" id="ai-key" type="password" data-input="aiKey" value="${esc(data.ai.key)}" placeholder="sk-ant-…" autocomplete="off">
           <details class="prompt-peek"><summary>Model</summary><input class="input" id="ai-model" data-input="aiModel" value="${esc(data.ai.model)}" placeholder="${AI.DEFAULT_MODEL}"></details>
           <div class="row-gap wrap">
-            <button class="btn btn-primary" data-act="aiGenerate" ${a.busy ? "disabled" : ""}>${a.busy ? "Generating…" : "Generate now"}</button>
+            <button class="btn btn-ghost" data-act="aiGenerate" ${a.busy ? "disabled" : ""}>${a.busy ? "Generating…" : "Generate with Claude"}</button>
             ${data.ai.key ? `<button class="btn btn-quiet" data-act="aiForget">Forget key</button>` : ""}
           </div>
-        </section>
+        </details>
 
         ${a.error ? `<p class="error" role="alert">${esc(a.error)}</p>` : ""}
         ${a.result ? aiResult(a, target) : ""}
@@ -1287,8 +1295,10 @@
     /* AI */
     aiOpen: (el) => {
       const target = el.dataset.target || null;
-      ui.ai = { target, topic: target ? (getCategory(target) || {}).name || "" : "", count: 30, difficulty: "medium", audience: "all", language: "English", reply: "", result: null, busy: false, error: "", from: ui.screen };
+      ui.ai = { target, topic: target ? (getCategory(target) || {}).name || "" : "", count: 30, difficulty: "medium", audience: "all", language: "English", reply: "", result: null, busy: false, error: "", from: ui.screen, server: "checking" };
       go("ai");
+      const mine = ui.ai;
+      AI.builtInStatus().then((st) => { mine.server = st; if (ui.ai === mine && ui.screen === "ai") render(); });
     },
     aiBack: () => go(ui.ai && ui.ai.from === "pack" ? "pack" : "packs"),
     aiTopic: (el) => { ui.ai.topic = el.dataset.val; render(); },
@@ -1303,6 +1313,17 @@
       ui.ai.busy = true; ui.ai.error = ""; render();
       try {
         const r = await AI.generateWithClaude(aiOpts(), data.ai.key, data.ai.model);
+        if (!r.category) r.category = ui.ai.topic;
+        ui.ai.result = r;
+      } catch (e) { ui.ai.error = e.message; }
+      ui.ai.busy = false;
+      if (ui.screen === "ai") { render(); scrollToResult(); }
+    },
+    aiBuiltIn: async () => {
+      if (!ui.ai.topic.trim()) { ui.ai.error = "Type a topic first, or tap one of the suggestions."; return render(); }
+      ui.ai.busy = true; ui.ai.error = ""; ui.ai.result = null; render();
+      try {
+        const r = await AI.generateBuiltIn(aiOpts());
         if (!r.category) r.category = ui.ai.topic;
         ui.ai.result = r;
       } catch (e) { ui.ai.error = e.message; }

@@ -1,5 +1,5 @@
 /* Offline support: cache the app shell, serve it when there's no connection. */
-const CACHE = "infiltrator-v1";
+const CACHE = "infiltrator-v2";
 const SHELL = ["./", "index.html", "css/style.css", "js/words.js", "js/ai.js", "js/app.js", "icon.svg", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
@@ -12,7 +12,7 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.hostname === "api.anthropic.com") return;
+  if (url.hostname === "api.anthropic.com" || (url.origin === location.origin && url.pathname.includes("/api/"))) return;
   // Network first so updates show up; fall back to cache when offline.
   e.respondWith(
     fetch(req).then((res) => {

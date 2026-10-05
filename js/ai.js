@@ -1,13 +1,17 @@
 /*
  * AI word-pack generation.
  *
- * Two routes:
- *  1. Free: build a prompt the player pastes into any chatbot, then paste the
+ * Three routes:
+ *  1. Built in: POST to this site's /api/generate, which calls Gemini with the
+ *     site owner's key (kept server-side). Needs the site hosted on Vercel.
+ *  2. Free: build a prompt the player pastes into any chatbot, then paste the
  *     reply back. parseAIReply() turns that reply into word entries.
- *  2. Direct: call the Claude API from the browser with the player's own key.
+ *  3. Direct: call the Claude API from the browser with the player's own key.
  *     The key is kept only in this browser's localStorage.
+ *
+ * Also loaded by api/generate.js on the server (via module.exports).
  */
-(function () {
+(function (root) {
   const DEFAULT_MODEL = "claude-opus-5-5";
 
   const SCHEMA = {
@@ -163,5 +167,34 @@
     return parseAIReply(text);
   }
 
-  window.AI = { DEFAULT_MODEL, buildPrompt, parseAIReply, generateWithClaude };
-})();
+  /* Built-in generator: returns "ready", "nokey" or "none" (no server). */
+  async function builtInStatus() {
+    try {
+      const res = await fetch("api/generate", { method: "GET", cache: "no-store" });
+      if (!res.ok) return "none";
+      const data = await res.json();
+      return data && data.available ? "ready" : "nokey";
+    } catch (e) { return "none"; }
+  }
+
+  async function generateBuiltIn(opts) {
+    let res;
+    try {
+      res = await fetch("api/generate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ topic: opts.topic, count: opts.count, difficulty: opts.difficulty, audience: opts.audience, language: opts.language, avoid: opts.avoid })
+      });
+    } catch (e) {
+      throw new Error("Couldn't reach the word generator. Check your connection, or use the copy-and-paste option.");
+    }
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* handled below */ }
+    if (!res.ok || !data || !Array.isArray(data.entries)) throw new Error((data && data.error) || `The word generator failed (${res.status}). Try again.`);
+    return { category: data.category || "", icon: data.icon || "✨", entries: data.entries };
+  }
+
+  const api = { DEFAULT_MODEL, buildPrompt, parseAIReply, generateWithClaude, builtInStatus, generateBuiltIn };
+  if (typeof module !== "undefined" && module.exports) module.exports = api;
+  else root.AI = api;
+})(typeof window !== "undefined" ? window : globalThis);

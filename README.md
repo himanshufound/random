@@ -43,9 +43,10 @@ Every rule can be changed after picking a mode, and each setting has a **?** tha
 
 - **866 word sets in 26 categories** built in, each with similar words for Infiltrators (places, food, movies, brands, Desi life, Bollywood, kids, party night and more).
 - **Your own categories**: create them, paste lists (`Coffee | Tea` adds a similar word), or add words to the built-in ones.
-- **AI-generated categories** on any topic, two ways:
-  - **Free**: copy a ready-made prompt into ChatGPT, Claude or Gemini and paste the reply back.
-  - **Instant**: use your own Claude API key. The key is stored only in your browser and sent only to Anthropic's API.
+- **AI-generated categories** on any topic:
+  - **Built in (free for players)**: one tap. The site calls Google Gemini through a small server function that keeps the site owner's key secret. Needs Vercel hosting (see below).
+  - **Any chatbot**: copy a ready-made prompt into ChatGPT, Claude or Gemini and paste the reply back. Works everywhere, no key.
+  - **Own Claude key** (advanced): stored only in the player's browser and sent only to Anthropic's API.
 - **Import / export** categories to share with friends.
 - **Groups**: save your regular crew and start in two taps.
 - **Scores and leaderboards** per group.
@@ -63,9 +64,20 @@ python3 -m http.server 8000
 
 ### Put it online for free
 
+**Vercel (recommended, enables the built-in AI generator):**
+
+1. Import this repository at [vercel.com/new](https://vercel.com/new). No build settings are needed.
+2. Get a free Gemini key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
+3. In the Vercel project go to *Settings → Environment Variables* and add `GEMINI_API_KEY` with that key (Production and Preview).
+4. Redeploy. The "Generate words" button now appears for everyone.
+
+Optional variables: `GEMINI_MODEL` (default `gemini-flash-latest`), `RATE_LIMIT` (generations per visitor per 10 minutes, default 12), `ALLOWED_ORIGINS` (extra sites allowed to call the generator).
+
+The key never reaches the browser. The server builds the prompt itself from a few checked options (topic, count, difficulty, audience, language), so the endpoint can only make word lists and can't be used as a free general chatbot.
+
 **GitHub Pages:** in the repository go to *Settings → Pages*, choose *Deploy from a branch*, pick `main` and `/ (root)`, and save. The game will be live at `https://<your-username>.github.io/<repo>/` within a minute.
 
-Netlify, Vercel or Cloudflare Pages work too: point them at this folder with no build command.
+On GitHub Pages, Netlify or Cloudflare Pages everything works except the built-in generator (players still have the copy-and-paste option).
 
 ## Files
 
@@ -73,7 +85,9 @@ Netlify, Vercel or Cloudflare Pages work too: point them at this folder with no 
 index.html            App shell
 css/style.css         All styles (dark "night ops" and light "manila folder" themes)
 js/words.js           Built-in word packs and question ideas
-js/ai.js              AI prompt builder, reply parser, Claude API call
+js/ai.js              AI prompt builder and reply parser (shared with the server), API calls
+api/generate.js       Vercel function: Gemini word generation with the key kept server-side
+vercel.json           Function settings
 js/app.js             Game engine, screens and storage
 sw.js                 Offline cache
 manifest.webmanifest  Install-as-app metadata

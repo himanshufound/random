@@ -306,6 +306,9 @@ textarea.input { resize: vertical; line-height: 1.45; }
 .prompt-peek pre { white-space: pre-wrap; font-size: 12px; background: var(--surface-2); padding: 10px; border-radius: 8px; max-height: 240px; overflow: auto; }
 .prompt-peek .input { margin-top: 8px; }
 .result { border-color: var(--accent); }
+.advanced summary { cursor: pointer; list-style-position: inside; }
+.advanced[open] { gap: 10px; }
+.advanced:not([open]) { gap: 0; }
 .file-btn { position: relative; overflow: hidden; }
 .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
