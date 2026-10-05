@@ -24,7 +24,7 @@
     mode: "undercover", autoCounts: true, inf: 1, blank: 0,
     vote: "anon", reveal: "role", who: "notFirst", knowRole: "no", hint: "off", guess: "yes",
     style: "clues", clueRounds: 1, timer: 0, length: "elim", starter: "random",
-    twists: "off", revealMode: "hold", sound: "on", avoidRepeats: "on", scoring: "on", theme: "auto"
+    twists: "off", revealMode: "hold", difficulty: "all", sound: "on", avoidRepeats: "on", scoring: "on", theme: "auto"
   };
 
   function loadData() {
@@ -60,12 +60,19 @@
    * ================================================================ */
   function allCategories() {
     const custom = Object.values(data.packs).map((p) => Object.assign({}, p, { custom: true }));
-    const builtin = (window.BUILTIN_PACKS || []).map((c) => Object.assign({}, c, { builtin: true, base: c.words, words: c.words.concat(data.extras[c.id] || []) }));
+    const easy = window.EASY_PAIRS || {};
+    const builtin = (window.BUILTIN_PACKS || []).map((c) => Object.assign({}, c, { builtin: true, base: c.words, easy: easy[c.id], words: c.words.concat(data.extras[c.id] || []) }));
     return custom.concat(builtin);
+  }
+  /* Entries a game can draw from. Easy mode uses the hand-picked easy pairs plus
+   * anything the players added themselves (their own words are assumed known). */
+  function playableWords(c) {
+    if (data.settings.difficulty !== "easy" || c.custom || !c.easy || c.easy === "all") return c.words;
+    return c.easy.concat(data.extras[c.id] || []);
   }
   const getCategory = (id) => allCategories().find((c) => c.id === id);
   const isEnabled = (c) => (c.id in data.enabled ? data.enabled[c.id] : !c.off);
-  const enabledCategories = () => allCategories().filter((c) => isEnabled(c) && c.words.length);
+  const enabledCategories = () => allCategories().filter((c) => isEnabled(c) && playableWords(c).length);
   const totalEntries = () => allCategories().reduce((n, c) => n + c.words.length, 0);
 
   function pickWords(needPair) {
@@ -73,8 +80,8 @@
     if (!cats.length) return null;
     const recent = new Set(data.settings.avoidRepeats === "on" ? data.recent : []);
     const keyOf = (c, e) => c.id + ":" + parseEntry(e)[0];
-    let pool = cats.map((c) => ({ c, entries: c.words.filter((e) => !recent.has(keyOf(c, e))) })).filter((x) => x.entries.length);
-    if (!pool.length) { data.recent = []; pool = cats.map((c) => ({ c, entries: c.words })); }
+    let pool = cats.map((c) => ({ c, entries: playableWords(c).filter((e) => !recent.has(keyOf(c, e))) })).filter((x) => x.entries.length);
+    if (!pool.length) { data.recent = []; pool = cats.map((c) => ({ c, entries: playableWords(c) })); }
     const { c, entries } = pick(pool);
     const entry = pick(entries);
     const group = parseEntry(entry);
@@ -82,7 +89,7 @@
     if (needPair) {
       if (group.length > 1) { [civ, inf] = shuffle(group); }
       else {
-        const others = c.words.map((e) => parseEntry(e)[0]).filter((w) => w !== civ);
+        const others = playableWords(c).map((e) => parseEntry(e)[0]).filter((w) => w !== civ);
         inf = others.length ? pick(others) : civ;
       }
     }
@@ -511,13 +518,18 @@
   function setupWords() {
     const cats = allCategories();
     const on = cats.filter(isEnabled);
-    const entries = on.reduce((n, c) => n + c.words.length, 0);
+    const entries = on.reduce((n, c) => n + playableWords(c).length, 0);
     return `<section class="card">
+      <div class="row-between"><h2 class="h2">Word difficulty</h2>${helpBtn("difficulty")}</div>
+      ${helpText("difficulty", "<b>Everyday words</b> only uses pairs where both words are things almost anyone knows, like Coffee / Tea or Hot Pot / Dumplings. Great for mixed groups, different countries and first games. <b>All words</b> adds harder and niche ones like Malatang or Silly Point. Words you added yourself are always included.")}
+      ${seg("difficulty", [["easy", "Everyday words", "Everyone knows them"], ["all", "All words", "Harder and niche too"]], data.settings.difficulty)}
+    </section>
+    <section class="card">
       <div class="row-between"><h2 class="h2">Word categories</h2><span class="count-pill">${entries} sets</span></div>
       <p class="muted small">A random word is drawn from the categories that are on.</p>
       <div class="row-gap"><button class="btn btn-quiet" data-act="allCats" data-val="1">All on</button><button class="btn btn-quiet" data-act="allCats" data-val="0">All off</button></div>
       <div class="cat-grid">${cats.map((c) => `<button class="cat${isEnabled(c) ? " is-on" : ""}" data-act="toggleCat" data-id="${c.id}" aria-pressed="${isEnabled(c)}">
-        <span class="cat-icon">${esc(c.icon || "🗂️")}</span><span class="cat-name">${esc(c.name)}</span><span class="cat-n">${c.words.length}${c.custom ? " · yours" : ""}</span>
+        <span class="cat-icon">${esc(c.icon || "🗂️")}</span><span class="cat-name">${esc(c.name)}</span><span class="cat-n">${playableWords(c).length}${c.custom ? " · yours" : ""}</span>
       </button>`).join("")}</div>
     </section>
     <section class="card row-between">
@@ -1061,6 +1073,7 @@
           <li><b>Infiltrators:</b> if your word seems slightly off, give vague clues and quietly agree with the majority.</li>
           <li><b>Mr. White:</b> wait, listen, then give a clue that matches the last two you heard.</li>
           <li><b>Everyone:</b> nobody may say their word, spell it or translate it. Say “pass” only if the group allows it.</li>
+          <li><b>New players or a mixed group?</b> Pick <b>Everyday words</b> in the Words step so nobody gets a word they've never heard of.</li>
         </ul>
       </section>
       <section class="card">
