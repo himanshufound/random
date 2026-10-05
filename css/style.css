@@ -206,8 +206,8 @@ textarea.input { resize: vertical; line-height: 1.45; }
 /* ---------- dossier (secret card) ---------- */
 .deal { justify-content: center; align-items: stretch; gap: 16px; }
 .pass-name { font-family: var(--font-display); font-weight: 900; font-size: clamp(40px, 13vw, 64px); text-transform: uppercase; text-align: center; line-height: 0.95; overflow-wrap: anywhere; }
-.dossier { position: relative; height: 330px; max-width: 100%; border-radius: 6px 18px 18px 18px; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; outline-offset: 4px; }
-.dossier-cover, .dossier-inside { position: absolute; inset: 0; border-radius: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 22px; transition: opacity 0.15s ease, transform 0.25s ease; }
+.dossier { position: relative; display: grid; min-height: 330px; max-width: 100%; border-radius: 6px 18px 18px 18px; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; outline-offset: 4px; }
+.dossier-cover, .dossier-inside { grid-area: 1 / 1; position: relative; border-radius: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 22px; transition: opacity 0.15s ease, transform 0.25s ease; }
 .dossier-cover { background: linear-gradient(160deg, var(--folder), var(--folder-2)); color: var(--ink); box-shadow: var(--shadow); gap: 10px; }
 .dossier-cover::before { content: ""; position: absolute; top: -14px; left: 0; width: 46%; height: 18px; background: var(--folder); border-radius: 8px 12px 0 0; }
 .dossier-tab { position: absolute; top: 14px; left: 18px; font-family: var(--font-type); font-size: 13px; letter-spacing: 0.06em; opacity: 0.75; max-width: 80%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -223,8 +223,10 @@ textarea.input { resize: vertical; line-height: 1.45; }
 .stamp-blank { color: #b3191f; }
 .stamp-plain { color: #6f6550; border-style: dashed; }
 .secret-word { font-family: var(--font-display); font-weight: 900; font-size: clamp(38px, 12vw, 58px); line-height: 1; text-transform: uppercase; overflow-wrap: anywhere; }
+.secret-word.is-long { font-size: clamp(28px, 8.5vw, 42px); }
 .secret-word.is-none { color: #b3191f; text-decoration: line-through; text-decoration-thickness: 4px; }
 .card-hint { font-size: 16px; }
+.word-desc { font-size: 16px; line-height: 1.35; color: #3a3426; max-width: 30ch; padding: 6px 10px; border-top: 1px dashed rgba(31, 26, 16, 0.25); border-bottom: 1px dashed rgba(31, 26, 16, 0.25); }
 .card-note { font-size: 15px; color: #4b4535; max-width: 32ch; }
 
 /* ---------- play ---------- */
@@ -322,7 +324,7 @@ textarea.input { resize: vertical; line-height: 1.45; }
 /* ---------- overlay ---------- */
 .scrim { position: fixed; inset: 0; z-index: 20; background: rgba(5, 7, 12, 0.72); display: flex; align-items: flex-end; justify-content: center; padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 .sheet { width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: var(--shadow); }
-.sheet .dossier { height: 300px; }
+.sheet .dossier { min-height: 300px; }
 .toast { position: fixed; z-index: 30; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 700; font-size: 15px; max-width: calc(100% - 32px); text-align: center; box-shadow: var(--shadow); }
 .confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
 

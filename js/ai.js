@@ -25,9 +25,18 @@
           type: "object",
           properties: {
             word: { type: "string" },
-            similar: { type: "array", items: { type: "string" } }
+            hint: { type: "string" },
+            similar: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: { word: { type: "string" }, hint: { type: "string" } },
+                required: ["word", "hint"],
+                additionalProperties: false
+              }
+            }
           },
-          required: ["word", "similar"],
+          required: ["word", "hint", "similar"],
           additionalProperties: false
         }
       }
@@ -59,6 +68,7 @@
       "Rules for each entry:",
       "- \"word\": a specific, recognisable thing, place, person, title or activity that people can describe in one word clues.",
       "- \"similar\": 1 or 2 words from the same topic that are close enough to cause confusion during clues but clearly different (example: Coffee → Tea, Hot Chocolate).",
+      "- \"hint\": for every word (main and similar), one short plain-English line (under 12 words) explaining what it is, for a player who has never heard of it.",
       "- Keep each word short (1 to 3 words). No duplicates."
     );
     if (opts.avoid && opts.avoid.length) {
@@ -67,7 +77,7 @@
     lines.push(
       "",
       "Reply with only JSON in exactly this shape, no extra text:",
-      '{"category": "Short category name", "icon": "one emoji", "words": [{"word": "Coffee", "similar": ["Tea", "Hot Chocolate"]}]}'
+      '{"category": "Short category name", "icon": "one emoji", "words": [{"word": "Coffee", "hint": "Hot drink made from roasted coffee beans", "similar": [{"word": "Tea", "hint": "Hot drink made by steeping leaves in water"}]}]}'
     );
     return lines.join("\n");
   }
@@ -76,18 +86,25 @@
     return String(s || "").replace(/[|\n\r\t]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
   }
 
-  /* Turn {word, similar[]} items into "Word|Similar|Similar" entries. */
-  function toEntries(items) {
+  const cleanHint = (s) => String(s || "").replace(/\s+/g, " ").trim().slice(0, 120);
+
+  /* Turn {word, hint, similar[]} items into "Word|Similar|Similar" entries.
+   * Similar words may be plain strings or {word, hint}. Hints go into `hints`. */
+  function toEntries(items, hints) {
     const seen = new Set();
     const out = [];
     for (const it of items || []) {
       const word = cleanWord(typeof it === "string" ? it : it && it.word);
       if (!word || seen.has(word.toLowerCase())) continue;
       seen.add(word.toLowerCase());
-      const sims = (it && Array.isArray(it.similar) ? it.similar : [])
-        .map(cleanWord)
-        .filter((s) => s && s.toLowerCase() !== word.toLowerCase())
-        .slice(0, 3);
+      if (it && it.hint && hints) hints[word] = cleanHint(it.hint);
+      const sims = [];
+      for (const sim of (it && Array.isArray(it.similar) ? it.similar : [])) {
+        const w = cleanWord(typeof sim === "string" ? sim : sim && sim.word);
+        if (!w || w.toLowerCase() === word.toLowerCase() || sims.length >= 3) continue;
+        if (sim && sim.hint && hints) hints[w] = cleanHint(sim.hint);
+        sims.push(w);
+      }
       out.push([word, ...sims].join("|"));
     }
     return out;
@@ -106,12 +123,14 @@
     }
     if (json) {
       const items = Array.isArray(json) ? json : json.words;
-      const entries = toEntries(items);
+      const hints = {};
+      const entries = toEntries(items, hints);
       if (!entries.length) throw new Error("The reply had no words in it.");
       return {
         category: cleanWord(json.category) || "",
         icon: (String(json.icon || "").trim().slice(0, 4)) || "✨",
-        entries
+        entries,
+        hints
       };
     }
     // Fallback: one word per line, optional "| similar" or ", similar".
@@ -121,7 +140,7 @@
       .map((l) => l.split(/\s*[|→]\s*|\s*,\s*/).map(cleanWord).filter(Boolean).join("|"))
       .filter(Boolean);
     if (!entries.length) throw new Error("Couldn't find any words in that reply.");
-    return { category: "", icon: "✨", entries };
+    return { category: "", icon: "✨", entries, hints: {} };
   }
 
   async function generateWithClaude(opts, apiKey, model) {
@@ -191,7 +210,7 @@
     let data = null;
     try { data = await res.json(); } catch (e) { /* handled below */ }
     if (!res.ok || !data || !Array.isArray(data.entries)) throw new Error((data && data.error) || `The word generator failed (${res.status}). Try again.`);
-    return { category: data.category || "", icon: data.icon || "✨", entries: data.entries };
+    return { category: data.category || "", icon: data.icon || "✨", entries: data.entries, hints: data.hints && typeof data.hints === "object" ? data.hints : {} };
   }
 
   const api = { DEFAULT_MODEL, buildPrompt, parseAIReply, generateWithClaude, builtInStatus, generateBuiltIn };

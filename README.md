@@ -42,6 +42,7 @@ Every rule can be changed after picking a mode, and each setting has a **?** tha
 ### Extras
 
 - **1,053 word sets in 30 categories** built in, each with similar words for Infiltrators (places, food, movies, brands, Desi life, Bollywood, life in China as a foreigner, Shenzhen · HK · Macau, brainrot, pop culture now, kids, party night and more).
+- **Word explanations**: every one of the 2,872 built-in words has a one-line description shown under the secret word (e.g. *Malatang: spicy soup where you pick your own skewers*), so nobody is stuck with a word they don't know. AI-generated categories come with explanations too. Can be switched off.
 - **Everyday words mode**: 707 hand-picked easy pairs (both words known to almost anyone, like Coffee / Tea) across every category, for mixed groups and first games. Switch between Everyday and All words in the Words step.
 - **Your own categories**: create them, paste lists (`Coffee | Tea` adds a similar word), or add words to the built-in ones.
 - **AI-generated categories** on any topic:
@@ -85,7 +86,8 @@ On GitHub Pages, Netlify or Cloudflare Pages everything works except the built-i
 ```
 index.html            App shell
 css/style.css         All styles (dark "night ops" and light "manila folder" themes)
-js/words.js           Built-in word packs and question ideas
+js/words.js           Built-in word packs, easy pairs and question ideas
+js/hints.js           One-line explanations for every built-in word
 js/ai.js              AI prompt builder and reply parser (shared with the server), API calls
 api/generate.js       Vercel function: Gemini word generation with the key kept server-side
 vercel.json           Function settings
