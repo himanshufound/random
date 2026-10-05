@@ -35,6 +35,7 @@ Every rule can be changed after picking a mode, and each setting has a **?** tha
 - Laps before each vote, discussion timer (30 s to 8 min)
 - Play until a team wins, or one vote decides
 - Reveal or hide roles when someone is voted out
+- **💥 Kamikaze**: during a round, a player can bet their life on an accusation. Right: the impostor is out and gets one last guess at the word (typed or said out loud). Wrong: the kamikaze player is out instead. Works in every mode; +3 points for a correct kamikaze
 - Random or fixed first speaker
 - Surprise twists (sometimes no impostor at all, sometimes an extra one)
 - Hold-to-reveal or tap-to-flip cards, scoring, sound/vibration, repeat-word avoidance, light/dark theme
