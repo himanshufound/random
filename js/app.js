@@ -949,6 +949,7 @@
       <footer class="dock"><div class="dock-col">
         <button class="btn btn-primary" data-act="playAgain">Play again, new word</button>
         <div class="dock-row"><button class="btn btn-ghost" data-act="changeSetup">Change setup</button><button class="btn btn-ghost" data-act="home">Home</button></div>
+        <button class="btn btn-quiet" data-act="shareGame">Share this game</button>
       </div></footer>`;
   }
 
@@ -1027,7 +1028,8 @@
           <p class="muted small">Makes the whole category in about 10 seconds. Review it before saving.</p>
           <button class="btn btn-primary btn-xl" data-act="aiBuiltIn" ${a.busy ? "disabled" : ""}>${a.busy ? "Generating…" : "✨ Generate words"}</button>
         </section>` : a.server === "checking" ? `<p class="muted small center">Checking for the built-in generator…</p>`
-          : a.server === "nokey" ? `<p class="muted small">The built-in generator isn't switched on for this site yet (no Gemini key). Use the free copy-and-paste option below.</p>` : ""}
+          : a.server === "nokey" ? `<p class="muted small">The built-in generator isn't switched on for this site yet (no Gemini key). Use the free copy-and-paste option below.</p>`
+          : a.server === "limit" ? `<p class="muted small">Today's free AI words are used up. The built-in generator switches back on tomorrow; the copy-and-paste option below works any time.</p>` : ""}
 
         <section class="card">
           <div class="row-between"><h2 class="h2">${a.server === "ready" ? "Or use any chatbot" : "Free: use any chatbot"}</h2><span class="tag">no key needed</span></div>
@@ -1431,6 +1433,14 @@
       save(); render();
     },
     deletePack: () => { const c = getCategory(ui.packId); confirmBox(`Delete “${c.name}”?`, `Its ${plural(c.words.length, "word")} will be removed from this device.`, "Delete", () => { delete data.packs[c.id]; delete data.enabled[c.id]; save(); go("packs"); }, true); },
+    shareGame: () => {
+      // Share the game itself, never this round's words.
+      const url = location.origin + location.pathname.replace(/index\.html$/, "");
+      const text = "Infiltrator: a free pass-the-phone party game of secret words and bluffing. One phone, 3–24 players, no app.";
+      if (navigator.share) {
+        navigator.share({ title: "Infiltrator", text, url }).catch((e) => { if (e && e.name !== "AbortError") copyText(url, "Link copied. Send it to your friends."); });
+      } else copyText(url, "Link copied. Send it to your friends.");
+    },
     sharePack: () => { const c = getCategory(ui.packId); copyText(exportJSON([c]), "Copied. Paste it to a friend; they import it under Word packs."); },
 
     /* AI */
@@ -1467,7 +1477,10 @@
         const r = await AI.generateBuiltIn(aiOpts());
         if (!r.category) r.category = ui.ai.topic;
         ui.ai.result = r;
-      } catch (e) { ui.ai.error = e.message; }
+      } catch (e) {
+        ui.ai.error = e.message;
+        if (e.code === "daily_limit") ui.ai.server = "limit";
+      }
       ui.ai.busy = false;
       if (ui.screen === "ai") { render(); scrollToResult(); }
     },

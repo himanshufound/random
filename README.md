@@ -74,9 +74,21 @@ python3 -m http.server 8000
 3. In the Vercel project go to *Settings → Environment Variables* and add `GEMINI_API_KEY` with that key (Production and Preview).
 4. Redeploy. The "Generate words" button now appears for everyone.
 
-Optional variables: `GEMINI_MODEL` (default `gemini-flash-latest`), `RATE_LIMIT` (generations per visitor per 10 minutes, default 12), `ALLOWED_ORIGINS` (extra sites allowed to call the generator).
+Optional variables:
 
-The key never reaches the browser. The server builds the prompt itself from a few checked options (topic, count, difficulty, audience, language), so the endpoint can only make word lists and can't be used as a free general chatbot.
+| Variable | Default | What it does |
+|---|---|---|
+| `DAILY_LIMIT` | `200` | Total AI generations per day (UTC) for the whole site. When it's reached the "Generate words" button switches itself off until midnight UTC, and players see the copy-and-paste option instead. `0` turns the cap off. |
+| `RATE_LIMIT` | `12` | Generations per visitor every 10 minutes. |
+| `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` | not set | An [Upstash Redis](https://upstash.com/) database for the two limits above. Adding Upstash from the Vercel Marketplace (*Storage → Upstash for Redis*) sets these for you. The older Vercel KV names, `KV_REST_API_URL` and `KV_REST_API_TOKEN`, work too. |
+| `GEMINI_MODEL` | `gemini-flash-latest` | Gemini model to try first. |
+| `ALLOWED_ORIGINS` | not set | Comma-separated extra sites (e.g. `https://example.com`) allowed to call the generator. |
+
+Without Upstash, the limits are counted in each server instance's memory. That still helps, but Vercel can run several instances and restarts them often, so the real totals can go above the limits. With Upstash, every instance shares the same counters. Visitor IP addresses are hashed before they're stored. If Upstash can't be reached, the function falls back to the in-memory counters.
+
+The key never reaches the browser. The server builds the prompt itself from a few checked options (topic, count, difficulty, audience, language), so the endpoint can only make word lists and can't be used as a free general chatbot. It only accepts requests sent from the game's own pages (the browser's `Origin` header must match the site or `ALLOWED_ORIGINS`). Scripts can fake that header, so the daily cap is what actually protects your quota.
+
+To make sure a traffic spike can't cost you money, use a Gemini key from a Google Cloud project without billing turned on (the free tier stops at its quota instead of charging), and keep `DAILY_LIMIT` below your model's free requests per day.
 
 **GitHub Pages:** in the repository go to *Settings → Pages*, choose *Deploy from a branch*, pick `main` and `/ (root)`, and save. The game will be live at `https://<your-username>.github.io/<repo>/` within a minute.
 
@@ -85,7 +97,9 @@ On GitHub Pages, Netlify or Cloudflare Pages everything works except the built-i
 ## Files
 
 ```
-index.html            App shell
+index.html            App shell and link-preview tags (update the URLs there if the site moves)
+og-image.png          1200×630 link-preview image
+apple-touch-icon.png  Home-screen icon for iPhone and iPad
 css/style.css         All styles (dark "night ops" and light "manila folder" themes)
 js/words.js           Built-in word packs, easy pairs and question ideas
 js/hints.js           One-line explanations for every built-in word

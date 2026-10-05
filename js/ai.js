@@ -186,13 +186,14 @@
     return parseAIReply(text);
   }
 
-  /* Built-in generator: returns "ready", "nokey" or "none" (no server). */
+  /* Built-in generator: returns "ready", "nokey", "limit" (today's cap is used up) or "none" (no server). */
   async function builtInStatus() {
     try {
       const res = await fetch("api/generate", { method: "GET", cache: "no-store" });
       if (!res.ok) return "none";
       const data = await res.json();
-      return data && data.available ? "ready" : "nokey";
+      if (data && data.available) return "ready";
+      return data && data.reason === "daily_limit" ? "limit" : "nokey";
     } catch (e) { return "none"; }
   }
 
@@ -209,7 +210,9 @@
     }
     let data = null;
     try { data = await res.json(); } catch (e) { /* handled below */ }
-    if (!res.ok || !data || !Array.isArray(data.entries)) throw new Error((data && data.error) || `The word generator failed (${res.status}). Try again.`);
+    if (!res.ok || !data || !Array.isArray(data.entries)) {
+      throw Object.assign(new Error((data && data.error) || `The word generator failed (${res.status}). Try again.`), { code: data && data.code });
+    }
     return { category: data.category || "", icon: data.icon || "✨", entries: data.entries, hints: data.hints && typeof data.hints === "object" ? data.hints : {} };
   }
 
