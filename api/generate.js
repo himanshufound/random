@@ -5,7 +5,7 @@
  * reaches the browser. The prompt is built here from a few validated options,
  * so the endpoint can only make word lists, not answer arbitrary prompts.
  *
- * GET  /api/generate  -> { available: boolean }
+ * GET  /api/generate  -> { available: boolean, reason?: "daily_limit" }
  * POST /api/generate  -> { category, icon, entries: ["Word|Similar", ...], hints: { Word: "..." } }
  *
  * Optional env vars:
@@ -13,36 +13,122 @@
  *                     gemini-3.8-flash, gemini-flash-lite-latest)
  *   ALLOWED_ORIGINS   comma-separated extra origins allowed to call this endpoint
  *   RATE_LIMIT        requests per visitor per 10 minutes (default 12)
+ *   DAILY_LIMIT       generations per UTC day for the whole site (default 200, 0 = no cap)
+ *   UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_URL +
+ *   KV_REST_API_TOKEN from Vercel KV): shared counters for both limits.
+ *   Without them the counters live in each server instance's memory.
  */
+const crypto = require("crypto");
 const { buildPrompt, parseAIReply } = require("../js/ai.js");
 
 const FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-flash-lite-latest"];
 const WINDOW_MS = 10 * 60 * 1000;
-const hits = new Map(); // best-effort per-instance rate limit
+const DAY_S = 24 * 60 * 60;
+const KEY_PREFIX = "infiltrator:";
+
+function envLimit(name, fallback) {
+  const raw = process.env[name];
+  if (raw == null || String(raw).trim() === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
+}
+const rateLimit = () => envLimit("RATE_LIMIT", 12) || 12;
+const dailyLimit = () => envLimit("DAILY_LIMIT", 200); // 0 turns the cap off
 
 function clientIp(req) {
   const fwd = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
   return fwd || req.headers["x-real-ip"] || (req.socket && req.socket.remoteAddress) || "unknown";
 }
 
-function rateLimited(ip) {
-  const limit = Number(process.env.RATE_LIMIT) || 12;
-  const now = Date.now();
-  const recent = (hits.get(ip) || []).filter((t) => now - t < WINDOW_MS);
-  if (recent.length >= limit) { hits.set(ip, recent); return true; }
-  recent.push(now);
-  hits.set(ip, recent);
-  if (hits.size > 5000) hits.clear();
-  return false;
+/* ---- Shared store: Upstash Redis / Vercel KV over REST, or null ---- */
+function kvConfig() {
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  return url && token ? { url: url.replace(/\/+$/, ""), token } : null;
 }
 
+async function kvPipeline(commands) {
+  const kv = kvConfig();
+  const res = await fetch(`${kv.url}/pipeline`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${kv.token}`, "content-type": "application/json" },
+    body: JSON.stringify(commands)
+  });
+  if (!res.ok) throw new Error(`KV HTTP ${res.status}`);
+  const out = await res.json();
+  const bad = out.find((r) => r && r.error);
+  if (bad) throw new Error(`KV ${bad.error}`);
+  return out.map((r) => r.result);
+}
+
+// Adds one to a counter that expires ttl seconds after it was created; returns the new value.
+async function kvIncr(key, ttl) {
+  const [, n] = await kvPipeline([["SET", key, "0", "EX", String(ttl), "NX"], ["INCR", key]]);
+  return Number(n);
+}
+async function kvGet(key) {
+  const [n] = await kvPipeline([["GET", key]]);
+  return Number(n) || 0;
+}
+
+/* ---- In-memory fallback (per server instance, resets on cold starts) ---- */
+const memory = new Map(); // key -> { n, until }
+function memIncr(key, ttl) {
+  const now = Date.now();
+  let e = memory.get(key);
+  if (!e || e.until <= now) { e = { n: 0, until: now + ttl * 1000 }; memory.set(key, e); }
+  e.n += 1;
+  if (memory.size > 5000) for (const [k, v] of memory) if (v.until <= now) memory.delete(k);
+  return e.n;
+}
+function memGet(key) {
+  const e = memory.get(key);
+  return e && e.until > Date.now() ? e.n : 0;
+}
+
+async function incr(key, ttl) {
+  if (kvConfig()) {
+    try { return await kvIncr(key, ttl); }
+    catch (e) { console.error("KV unavailable, using in-memory limits:", e.message); }
+  }
+  return memIncr(key, ttl);
+}
+async function peek(key) {
+  if (kvConfig()) {
+    try { return await kvGet(key); }
+    catch (e) { console.error("KV unavailable, using in-memory limits:", e.message); }
+  }
+  return memGet(key);
+}
+
+/* ---- Limits ---- */
+const dayKey = () => `${KEY_PREFIX}day:${new Date().toISOString().slice(0, 10)}`;
+
+async function dailyCapReached() {
+  const cap = dailyLimit();
+  return cap > 0 && (await peek(dayKey())) >= cap;
+}
+// Reserves one generation from today's budget before Gemini is called, so bursts can't overshoot.
+async function takeDailySlot() {
+  const cap = dailyLimit();
+  return cap === 0 || (await incr(dayKey(), DAY_S + 3600)) <= cap;
+}
+
+async function rateLimited(ip) {
+  // Visitor IPs are hashed before they're used as keys in the shared store.
+  const id = crypto.createHash("sha256").update(ip).digest("hex").slice(0, 32);
+  const win = Math.floor(Date.now() / WINDOW_MS);
+  return (await incr(`${KEY_PREFIX}rl:${id}:${win}`, WINDOW_MS / 1000)) > rateLimit();
+}
+
+// Only the game's own pages may generate: POSTs must carry an Origin that matches this site.
 function originAllowed(req) {
   const origin = req.headers.origin;
-  if (!origin) return true; // same-origin GETs and non-browser clients send no Origin
+  if (!origin || origin === "null") return false;
   let host;
   try { host = new URL(origin).host; } catch (e) { return false; }
-  if (host === req.headers.host) return true;
-  const extra = String(process.env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (host === req.headers.host || host === req.headers["x-forwarded-host"]) return true;
+  const extra = String(process.env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim().replace(/\/+$/, "")).filter(Boolean);
   return extra.includes(origin);
 }
 
@@ -103,21 +189,28 @@ async function callGemini(prompt, key) {
   throw lastError || Object.assign(new Error("No Gemini model is available. The site owner can set GEMINI_MODEL."), { status: 502 });
 }
 
+const DAILY_MSG = "Today's free AI words are used up. Use the copy-and-paste option, or try again tomorrow.";
+
 module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   const key = process.env.GEMINI_API_KEY;
 
-  if (req.method === "GET") return res.status(200).json({ available: !!key });
+  if (req.method === "GET") {
+    if (!key) return res.status(200).json({ available: false });
+    if (await dailyCapReached()) return res.status(200).json({ available: false, reason: "daily_limit" });
+    return res.status(200).json({ available: true });
+  }
   if (req.method !== "POST") { res.setHeader("Allow", "GET, POST"); return res.status(405).json({ error: "Method not allowed." }); }
   if (!originAllowed(req)) return res.status(403).json({ error: "This generator only works from the game's own website." });
   if (!key) return res.status(503).json({ error: "The built-in AI isn't set up yet. Use the copy-and-paste option instead." });
-  if (rateLimited(clientIp(req))) return res.status(429).json({ error: "That's a lot of categories! Wait a few minutes before generating more." });
+  if (await rateLimited(clientIp(req))) return res.status(429).json({ error: "That's a lot of categories! Wait a few minutes before generating more." });
 
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch (e) { body = null; } }
 
   try {
     const opts = readOptions(body);
+    if (!(await takeDailySlot())) return res.status(429).json({ error: DAILY_MSG, code: "daily_limit" });
     const text = await callGemini(buildPrompt(opts), key);
     let parsed;
     try {
