@@ -178,6 +178,7 @@ textarea.input { resize: vertical; line-height: 1.45; }
 .mode-name { font-family: var(--font-display); font-weight: 800; font-size: 22px; text-transform: uppercase; }
 .mode-tag { font-family: var(--font-type); font-size: 12px; color: var(--accent); letter-spacing: 0.06em; margin-left: auto; }
 .mode-desc { color: var(--muted); font-size: 15px; }
+.count-out { font-family: var(--font-display); font-weight: 800; font-size: 24px; min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
 .role-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 4px; }
 .composition { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
 .dot { width: 18px; height: 18px; border-radius: 50%; display: inline-block; }
