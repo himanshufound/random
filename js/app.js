@@ -21,7 +21,7 @@
    * Persistent data
    * ================================================================ */
   const DEFAULT_SETTINGS = {
-    mode: "undercover", autoCounts: true, inf: 1, blank: 0,
+    mode: "undercover", autoCounts: true, countMode: "auto", inf: 1, blank: 0, infPct: 20, blankPct: 0,
     vote: "anon", reveal: "role", who: "notFirst", knowRole: "no", hint: "off", guess: "yes",
     style: "clues", clueRounds: 1, timer: 0, length: "elim", starter: "random",
     twists: "off", revealMode: "hold", difficulty: "all", wordHints: "on", kamikaze: "on", sound: "on", avoidRepeats: "on", scoring: "on", theme: "auto"
@@ -36,7 +36,8 @@
       playerCount: d.playerCount || 5,
       groups: d.groups || [],
       activeGroup: d.activeGroup || null,
-      settings: Object.assign({}, DEFAULT_SETTINGS, d.settings || {}),
+      settings: Object.assign({}, DEFAULT_SETTINGS, d.settings || {}, d.settings && !d.settings.countMode && d.settings.autoCounts === false ? { countMode: "exact" } : {}),
+      lastImpostors: d.lastImpostors || [], // names of last game's impostors, so nobody is picked twice in a row
       packs: d.packs || {},        // custom categories: {id: {id,name,icon,words}}
       extras: d.extras || {},      // words added to built-in categories
       extraHints: d.extraHints || {}, // explanations for words players added to built-in categories
@@ -128,9 +129,20 @@
     if (mode === "mixed") return n < 5 ? { inf: 1, blank: 0 } : { inf: n >= 10 ? 3 : n >= 7 ? 2 : 1, blank: n >= 11 ? 2 : 1 };
     return { inf: n >= 10 ? 3 : n >= 6 ? 2 : 1, blank: 0 };
   }
+  /* Percentage mode: a share of the group, rounded, with at least one player
+   * for any role whose share is above zero. */
+  function pctCounts(n, infPct, blankPct) {
+    let inf = Math.round((n * infPct) / 100), blank = Math.round((n * blankPct) / 100);
+    if (infPct > 0 && inf === 0) inf = 1;
+    if (blankPct > 0 && blank === 0) blank = 1;
+    return { inf, blank };
+  }
   function roleCounts() {
     const s = data.settings;
-    return s.autoCounts ? recommend(currentPlayers().length, s.mode) : { inf: s.inf, blank: s.blank };
+    const n = currentPlayers().length;
+    if (s.countMode === "percent") return pctCounts(n, s.infPct, s.blankPct);
+    if (s.countMode === "exact") return { inf: s.inf, blank: s.blank };
+    return recommend(n, s.mode);
   }
   const blankName = (s) => (s.mode === "spy" ? "Spy" : "Mr. White");
   const roleLabel = (role, s) => (role === "civilian" ? "Civilian" : role === "infiltrator" ? "Infiltrator" : blankName(s));
@@ -174,7 +186,11 @@
 
     const startIdx = s.starter === "random" ? randInt(n) : 0;
     const order = players.map((_, i) => (startIdx + i) % n);
-    const eligible = shuffle(order.slice(bannedFirst(s)));
+    // Last game's impostors go to the back of the queue, so they're only picked
+    // again when there aren't enough other eligible players.
+    const recent = new Set(data.lastImpostors || []);
+    const pool = order.slice(bannedFirst(s));
+    const eligible = shuffle(pool.filter((i) => !recent.has(players[i].name))).concat(shuffle(pool.filter((i) => recent.has(players[i].name))));
     const infSet = new Set(eligible.slice(0, inf));
     const blankSet = new Set(eligible.slice(inf, inf + blank));
     const words = pickWords(inf > 0 || planned.inf > 0);
@@ -189,6 +205,7 @@
       vote: null, lastOut: null, guess: null, result: null, scope: data.activeGroup || "session"
     };
     data.game = game;
+    data.lastImpostors = game.players.filter((p) => p.role !== "civilian").map((p) => p.name);
     save();
     ui.revealed = false; ui.seen = false; ui.peek = null;
     go("game");
@@ -551,14 +568,24 @@
     </section>
     <section class="card">
       <div class="row-between"><h2 class="h2">Roles</h2>${helpBtn("roles")}</div>
-      ${helpText("roles", "<b>Civilians</b> all get the same word. <b>Infiltrators</b> get a similar but different word (Coffee vs Tea). <b>" + blankName(s) + "</b> gets no word at all. Infiltrators and " + blankName(s) + " are the impostors.")}
+      ${helpText("roles", "<b>Civilians</b> all get the same word. <b>Infiltrators</b> get a similar but different word (Coffee vs Tea). <b>" + blankName(s) + "</b> gets no word at all. Infiltrators and " + blankName(s) + " are the impostors. Pick <b>Suggested</b> for sensible numbers, <b>Exact number</b> to choose yourself, or <b>Percentage</b> to set a share of the group that scales with how many are playing.")}
+      <p class="label">How many impostors?</p>
+      ${seg("countMode", [["auto", "Suggested"], ["exact", "Exact number"], ["percent", "Percentage"]], s.countMode, "countMode")}
+      ${s.countMode === "percent" ? `
+      <div class="role-row"><div><p class="strong">Infiltrators</p><p class="muted small">Similar word · ${plural(inf, "player")}</p></div>
+        <div class="stepper"><button data-act="pct" data-key="infPct" data-d="-5" aria-label="Fewer Infiltrators">−</button><output>${s.infPct}%</output><button data-act="pct" data-key="infPct" data-d="5" aria-label="More Infiltrators">+</button></div></div>
+      <div class="role-row"><div><p class="strong">${blankName(s)}</p><p class="muted small">No word · ${plural(blank, "player")}</p></div>
+        <div class="stepper"><button data-act="pct" data-key="blankPct" data-d="-5" aria-label="Fewer ${blankName(s)}">−</button><output>${s.blankPct}%</output><button data-act="pct" data-key="blankPct" data-d="5" aria-label="More ${blankName(s)}">+</button></div></div>
+      <p class="muted small">Percent of the group, so it scales when people join or leave. Any share above 0% means at least one player.</p>` : `
       <div class="role-row"><div><p class="strong">Infiltrators</p><p class="muted small">Similar word</p></div>
-        <div class="stepper"><button data-act="roleCount" data-key="inf" data-d="-1">−</button><output>${inf}</output><button data-act="roleCount" data-key="inf" data-d="1">+</button></div></div>
+        ${s.countMode === "exact" ? `<div class="stepper"><button data-act="roleCount" data-key="inf" data-d="-1" aria-label="Fewer Infiltrators">−</button><output>${inf}</output><button data-act="roleCount" data-key="inf" data-d="1" aria-label="More Infiltrators">+</button></div>` : `<output class="count-out">${inf}</output>`}</div>
       <div class="role-row"><div><p class="strong">${blankName(s)}</p><p class="muted small">No word</p></div>
-        <div class="stepper"><button data-act="roleCount" data-key="blank" data-d="-1">−</button><output>${blank}</output><button data-act="roleCount" data-key="blank" data-d="1">+</button></div></div>
+        ${s.countMode === "exact" ? `<div class="stepper"><button data-act="roleCount" data-key="blank" data-d="-1" aria-label="Fewer ${blankName(s)}">−</button><output>${blank}</output><button data-act="roleCount" data-key="blank" data-d="1" aria-label="More ${blankName(s)}">+</button></div>` : `<output class="count-out">${blank}</output>`}</div>`}
       <div class="composition">${Array.from({ length: civ }, () => `<i class="dot civ"></i>`).join("")}${Array.from({ length: inf }, () => `<i class="dot inf"></i>`).join("")}${Array.from({ length: blank }, () => `<i class="dot blank"></i>`).join("")}</div>
       <p class="small">${plural(civ, "Civilian")} · ${plural(inf, "Infiltrator")} · ${blank} ${blankName(s)}</p>
-      ${s.autoCounts ? `<p class="muted small">Auto: suggested for ${n} players.</p>` : `<button class="btn btn-quiet" data-act="autoCounts">Use suggested numbers</button>`}
+      ${inf + blank > 0 && civ <= inf + blank ? `<p class="dock-err">Too many impostors for ${n} players. Civilians must outnumber them, so lower the numbers.</p>` : ""}
+      ${s.countMode === "auto" ? `<p class="muted small">Suggested for ${n} players.</p>` : ""}
+      <p class="muted small">🔁 Nobody is an impostor two games in a row (unless the group is too small to avoid it).</p>
     </section>`;
   }
 
@@ -1189,6 +1216,7 @@
           <li><b>Infiltrators:</b> if your word seems slightly off, give vague clues and quietly agree with the majority.</li>
           <li><b>Mr. White:</b> wait, listen, then give a clue that matches the last two you heard.</li>
           <li><b>Everyone:</b> nobody may say their word, spell it or translate it. Say “pass” only if the group allows it.</li>
+          <li><b>Fair turns:</b> whoever was an impostor last game won't be one in the next, so everyone gets a go.</li>
           <li><b>New players or a mixed group?</b> Pick <b>Everyday words</b> in the Words step so nobody gets a word they've never heard of.</li>
         </ul>
       </section>
@@ -1325,14 +1353,31 @@
     updateGroup: () => { const g = data.groups.find((x) => x.id === data.activeGroup); if (!g) return; g.players = data.players.map((p, i) => p.name.trim() || `Player ${i + 1}`); save(); render(); toast("Group updated"); },
 
     /* mode & roles */
-    mode: (el) => { const m = el.dataset.val; Object.assign(data.settings, MODES[m].preset, { mode: m, autoCounts: true }); save(); render(); },
+    mode: (el) => {
+      const m = el.dataset.val; const s = data.settings;
+      Object.assign(s, MODES[m].preset, { mode: m });
+      if (s.countMode === "exact") s.countMode = "auto";
+      save(); render();
+    },
+    countMode: (el) => {
+      const s = data.settings; const v = el.dataset.val; const c = roleCounts(); const n = Math.max(1, currentPlayers().length);
+      const toPct = (k) => (k > 0 ? Math.max(5, Math.min(45, Math.round(((k / n) * 100) / 5) * 5)) : 0);
+      if (v === "percent" && s.countMode !== "percent") { s.infPct = toPct(c.inf); s.blankPct = toPct(c.blank); }
+      if (v === "exact" && s.countMode !== "exact") { s.inf = c.inf; s.blank = c.blank; }
+      s.countMode = v; save(); render();
+    },
     roleCount: (el) => {
-      const s = data.settings; const c = roleCounts();
-      s.inf = c.inf; s.blank = c.blank; s.autoCounts = false;
+      const s = data.settings;
+      s.countMode = "exact";
       s[el.dataset.key] = Math.max(0, Math.min(10, s[el.dataset.key] + Number(el.dataset.d)));
       save(); render();
     },
-    autoCounts: () => { data.settings.autoCounts = true; save(); render(); },
+    pct: (el) => {
+      const s = data.settings; const k = el.dataset.key;
+      s[k] = Math.max(0, Math.min(45, (Number(s[k]) || 0) + Number(el.dataset.d)));
+      save(); render();
+    },
+    autoCounts: () => { data.settings.countMode = "auto"; save(); render(); },
 
     /* settings */
     set: (el) => {

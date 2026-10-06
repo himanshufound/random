@@ -27,6 +27,8 @@ A free, pass-the-phone party game of secret words and bluffing, in the style of 
 Every rule can be changed after picking a mode, and each setting has a **?** that explains it:
 
 - Anonymous (pass the phone) or real-life voting
+- How many impostors: suggested for your group size, an exact number, or a **percentage** of players (scales as people join or leave)
+- **No repeat impostors**: whoever was an impostor last game won't be one in the next (unless the group is too small)
 - Who can be an impostor: anyone / not the first player / not the first two
 - Whether Infiltrators know they're Infiltrators
 - Hint for Mr. White: none / category / category + letter count
