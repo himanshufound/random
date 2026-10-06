@@ -28,7 +28,8 @@ Every rule can be changed after picking a mode, and each setting has a **?** tha
 
 - Anonymous (pass the phone) or real-life voting
 - How many impostors: suggested for your group size, an exact number, or a **percentage** of players (scales as people join or leave)
-- **No repeat impostors**: whoever was an impostor last game won't be one in the next (unless the group is too small)
+- **No repeat impostors**: whoever was an impostor last game won't be one in the next (unless the group is too small). Can be switched off
+- **Chance of being the impostor**: equal for everyone, or **custom per player** (e.g. Alex: Spy 20% · Safe 80%, Sam: Spy 70% · Safe 30%) in 10% steps. Players left on auto share what's left; 0% means never. The chances are exact for every game (systematic sampling), and the first speaker is picked after the impostors, so “not the first player” doesn't skew them
 - Who can be an impostor: anyone / not the first player / not the first two
 - Whether Infiltrators know they're Infiltrators
 - Hint for Mr. White: none / category / category + letter count
