@@ -1,5 +1,5 @@
 /* Offline support: cache the app shell, serve it when there's no connection. */
-const CACHE = "infiltrator-v5";
+const CACHE = "infiltrator-v6";
 const SHELL = ["./", "index.html", "css/style.css", "js/words.js", "js/hints.js", "js/ai.js", "js/app.js", "icon.svg", "apple-touch-icon.png", "manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {

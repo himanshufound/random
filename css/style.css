@@ -334,3 +334,16 @@ textarea.input { resize: vertical; line-height: 1.45; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .logo .redact::after { transform: scaleX(1); }
 }
+
+/* Per-player impostor chances */
+.odds-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.odds-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px dashed var(--line); }
+.odds-row:first-child { border-top: 0; }
+.odds-row.is-locked { opacity: 0.7; }
+.odds-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.odds-info .strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.odds-imp { color: var(--spy); font-weight: 700; }
+.odds-bar { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--civ) 45%, var(--surface-2)); overflow: hidden; }
+.odds-bar i { display: block; height: 100%; background: var(--spy); transition: width 0.2s ease; }
+.odds-row .stepper output { min-width: 58px; font-size: 20px; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; font: inherit; cursor: pointer; }

@@ -24,7 +24,8 @@
     mode: "undercover", autoCounts: true, countMode: "auto", inf: 1, blank: 0, infPct: 20, blankPct: 0,
     vote: "anon", reveal: "role", who: "notFirst", knowRole: "no", hint: "off", guess: "yes",
     style: "clues", clueRounds: 1, timer: 0, length: "elim", starter: "random",
-    twists: "off", revealMode: "hold", difficulty: "all", wordHints: "on", kamikaze: "on", sound: "on", avoidRepeats: "on", scoring: "on", theme: "auto"
+    twists: "off", revealMode: "hold", difficulty: "all", wordHints: "on", kamikaze: "on", sound: "on", avoidRepeats: "on", scoring: "on", theme: "auto",
+    oddsMode: "equal", noRepeat: "on"
   };
 
   function loadData() {
@@ -38,6 +39,7 @@
       activeGroup: d.activeGroup || null,
       settings: Object.assign({}, DEFAULT_SETTINGS, d.settings || {}, d.settings && !d.settings.countMode && d.settings.autoCounts === false ? { countMode: "exact" } : {}),
       lastImpostors: d.lastImpostors || [], // names of last game's impostors, so nobody is picked twice in a row
+      odds: d.odds || {},          // custom impostor chance per player name (0-100); missing = auto
       packs: d.packs || {},        // custom categories: {id: {id,name,icon,words}}
       extras: d.extras || {},      // words added to built-in categories
       extraHints: d.extraHints || {}, // explanations for words players added to built-in categories
@@ -148,6 +150,60 @@
   const roleLabel = (role, s) => (role === "civilian" ? "Civilian" : role === "infiltrator" ? "Infiltrator" : blankName(s));
   const bannedFirst = (s) => (s.who === "notFirst" ? 1 : s.who === "notFirstTwo" ? 2 : 0);
 
+  /* ---- Who gets picked: equal odds, or a custom chance per player ---- */
+  const impostorWord = (s, c) => (s.mode === "spy" ? "Spy" : c.inf && c.blank ? "Impostor" : c.blank ? blankName(s) : "Infiltrator");
+  // Seats that can never be an impostor. With a random first speaker the speaker is chosen
+  // after the impostors, so the "who can be an impostor" rule doesn't rule anybody out.
+  const lockedOut = (s) => (s.starter === "first" ? bannedFirst(s) : 0);
+
+  /* Each player's chance (0 to 1) of being an impostor. The chances add up to k, the number
+   * of impostors. Players with a set chance keep it and the rest share what's left equally.
+   * Chances that don't fit are scaled so the total is right and nobody goes past 100%. */
+  function playerChances(players, k, s) {
+    const set = data.odds || {};
+    const w = players.map(() => 0);
+    const free = [];
+    let setSum = 0;
+    players.forEach((p, i) => {
+      if (i < lockedOut(s)) return;
+      if (set[p.name] == null) free.push(i);
+      else { w[i] = set[p.name] / 100; setSum += w[i]; }
+    });
+    const left = Math.max(0, k - setSum);
+    free.forEach((i) => { w[i] = left / free.length; });
+    return capChances(w, k);
+  }
+  function capChances(w, k) {
+    const pi = w.map(() => 0);
+    let active = w.map((_, i) => i).filter((i) => w[i] > 0);
+    let target = k;
+    while (active.length && target > 1e-9) {
+      const c = target / active.reduce((a, i) => a + w[i], 0);
+      const full = active.filter((i) => w[i] * c >= 1);
+      if (!full.length) { active.forEach((i) => { pi[i] = w[i] * c; }); break; }
+      full.forEach((i) => { pi[i] = 1; });
+      target -= full.length;
+      active = active.filter((i) => w[i] * c < 1);
+    }
+    return pi;
+  }
+  /* Systematic sampling: picks exactly k players, each one with exactly their chance pi[i]. */
+  function pickByChance(pi, k) {
+    const order = shuffle(pi.map((_, i) => i));
+    const u = Math.random();
+    const picked = [];
+    let cum = 0;
+    for (const i of order) {
+      const next = cum + pi[i];
+      if (picked.length < k && u + picked.length < next - 1e-9) picked.push(i);
+      cum = next;
+    }
+    // Rounding, or too few players above 0%: top up, players with a chance first.
+    order.slice().sort((a, b) => pi[b] - pi[a]).forEach((i) => { if (picked.length < k && !picked.includes(i)) picked.push(i); });
+    return picked;
+  }
+  const withChance = (players, k, s) => playerChances(players, k, s).filter((p) => p > 0).length;
+
   function validateSetup() {
     const players = currentPlayers();
     const n = players.length;
@@ -157,6 +213,7 @@
     if (inf + blank < 1) return "Add at least one Infiltrator or " + blankName(s) + ".";
     if (n - inf - blank <= inf + blank) return `Too many impostors for ${n} players. Civilians must outnumber them.`;
     if (n - bannedFirst(s) < inf + blank) return "Not enough players to respect the “who can be an impostor” rule.";
+    if (s.oddsMode === "custom" && withChance(players, inf + blank, s) < inf + blank) return `Give at least ${plural(inf + blank, "player")} a chance above 0% in the Roles step.`;
     if (!enabledCategories().length) return "Turn on at least one word category.";
     if (data.useNames) {
       const names = players.map((p) => p.name.toLowerCase());
@@ -179,20 +236,33 @@
     if (s.twists === "on") {
       const r = Math.random();
       if (r < 0.06) twist = "none";
-      else if (r < 0.12 && n - inf - blank - 1 > inf + blank + 1) twist = "extra";
+      else if (r < 0.12 && n - inf - blank - 1 > inf + blank + 1 && (s.oddsMode !== "custom" || withChance(players, inf + blank + 1, s) > inf + blank)) twist = "extra";
     }
     if (twist === "none") { inf = 0; blank = 0; }
     if (twist === "extra") inf += 1;
 
-    const startIdx = s.starter === "random" ? randInt(n) : 0;
-    const order = players.map((_, i) => (startIdx + i) % n);
-    // Last game's impostors go to the back of the queue, so they're only picked
-    // again when there aren't enough other eligible players.
-    const recent = new Set(data.lastImpostors || []);
-    const pool = order.slice(bannedFirst(s));
-    const eligible = shuffle(pool.filter((i) => !recent.has(players[i].name))).concat(shuffle(pool.filter((i) => recent.has(players[i].name))));
-    const infSet = new Set(eligible.slice(0, inf));
-    const blankSet = new Set(eligible.slice(inf, inf + blank));
+    // No repeats: last game's impostors are only picked again when there aren't enough other players.
+    const recent = new Set(s.noRepeat === "on" ? data.lastImpostors || [] : []);
+    let startIdx, picks;
+    if (s.oddsMode === "custom") {
+      const k = inf + blank;
+      let pi = playerChances(players, k, s);
+      const fresh = pi.map((p, i) => (recent.has(players[i].name) ? 0 : p));
+      if (fresh.filter((p) => p > 0).length >= k) pi = capChances(fresh, k);
+      picks = shuffle(pickByChance(pi, k));
+      // Pick the first speaker after the impostors, so "not the first player" doesn't change anyone's chance.
+      const imp = new Set(picks);
+      const b = bannedFirst(s);
+      const starts = players.map((_, i) => i).filter((st) => Array.from({ length: b }, (_, j) => (st + j) % n).every((x) => !imp.has(x)));
+      startIdx = s.starter === "random" ? (starts.length ? starts[randInt(starts.length)] : randInt(n)) : 0;
+    } else {
+      startIdx = s.starter === "random" ? randInt(n) : 0;
+      const order = players.map((_, i) => (startIdx + i) % n);
+      const pool = order.slice(bannedFirst(s));
+      picks = shuffle(pool.filter((i) => !recent.has(players[i].name))).concat(shuffle(pool.filter((i) => recent.has(players[i].name))));
+    }
+    const infSet = new Set(picks.slice(0, inf));
+    const blankSet = new Set(picks.slice(inf, inf + blank));
     const words = pickWords(inf > 0 || planned.inf > 0);
 
     const game = {
@@ -585,7 +655,51 @@
       <p class="small">${plural(civ, "Civilian")} · ${plural(inf, "Infiltrator")} · ${blank} ${blankName(s)}</p>
       ${inf + blank > 0 && civ <= inf + blank ? `<p class="dock-err">Too many impostors for ${n} players. Civilians must outnumber them, so lower the numbers.</p>` : ""}
       ${s.countMode === "auto" ? `<p class="muted small">Suggested for ${n} players.</p>` : ""}
-      <p class="muted small">🔁 Nobody is an impostor two games in a row (unless the group is too small to avoid it).</p>
+      ${s.noRepeat === "on" ? `<p class="muted small">🔁 Nobody is an impostor two games in a row (unless the group is too small to avoid it). You can turn this off in Rules.</p>` : ""}
+    </section>
+    ${setupOdds(inf, blank)}`;
+  }
+
+  /* Chance of being the impostor: equal for everyone, or set per player. */
+  function setupOdds(inf, blank) {
+    const s = data.settings;
+    const players = currentPlayers();
+    const k = inf + blank;
+    const word = impostorWord(s, { inf, blank });
+    const custom = s.oddsMode === "custom";
+    let rows = "";
+    let note = "";
+    if (custom && k > 0) {
+      const pi = playerChances(players, k, s);
+      const set = data.odds || {};
+      const pct = pi.map((p) => Math.round(p * 100));
+      rows = players.map((p, i) => {
+        if (i < lockedOut(s)) return `<div class="odds-row is-locked"><div class="odds-info"><p class="strong">${esc(p.name)}</p><p class="small muted">Speaks first, so never the ${esc(word)} (see “Who can be an impostor?”)</p></div></div>`;
+        const mine = set[p.name] != null;
+        return `<div class="odds-row">
+          <div class="odds-info">
+            <p class="strong">${esc(p.name)}</p>
+            <p class="small"><span class="odds-imp">${esc(word)} ${pct[i]}%</span> · <span class="muted">Safe ${100 - pct[i]}%</span> · ${mine ? `<button type="button" class="link-btn" data-act="oddsAuto" data-i="${i}">reset to auto</button>` : `<span class="muted">auto</span>`}</p>
+            <div class="odds-bar" aria-hidden="true"><i style="width:${pct[i]}%"></i></div>
+          </div>
+          <div class="stepper"><button data-act="odds" data-i="${i}" data-d="-10" aria-label="Lower ${esc(p.name)}'s chance">−</button><output>${pct[i]}%</output><button data-act="odds" data-i="${i}" data-d="10" aria-label="Raise ${esc(p.name)}'s chance">+</button></div>
+        </div>`;
+      }).join("");
+      const scaled = players.some((p, i) => set[p.name] != null && i >= lockedOut(s) && Math.abs(set[p.name] - pi[i] * 100) >= 1);
+      const total = k * 100;
+      if (withChance(players, k, s) < k) note += `<p class="dock-err">Give at least ${plural(k, "player")} a chance above 0%.</p>`;
+      else if (scaled) note += `<p class="muted small">⚖️ The set chances didn't add up to ${total}%, so they've been scaled to fit.</p>`;
+      const last = s.noRepeat === "on" ? players.filter((p) => (data.lastImpostors || []).includes(p.name)).map((p) => p.name) : [];
+      if (last.length && withChance(players.filter((p) => !last.includes(p.name)), k, s) >= k) {
+        note += `<p class="muted small">🔁 ${esc(last.join(", "))} ${last.length === 1 ? "was" : "were"} an impostor last game, so ${last.length === 1 ? "sits" : "sit"} out the next one and everyone else's chance goes up. Turn off “No repeat impostors” in Rules to always use exactly these chances.</p>`;
+      }
+    }
+    return `<section class="card">
+      <div class="row-between"><h2 class="h2">Chance of being the ${esc(word)}</h2>${helpBtn("odds")}</div>
+      ${helpText("odds", `<b>Equal</b> gives everyone the same chance. <b>Custom</b> lets you set each player's chance with − and +, for example ${esc(players[0] ? players[0].name : "Player 1")} 20% ${esc(word)} / 80% safe. With one impostor the chances always add up to 100% (200% with two, and so on), so players left on <b>auto</b> share whatever is left. 0% means never. The chances are exact for every game, except that “No repeat impostors” makes last game's impostor sit out the next one.`)}
+      ${seg("oddsMode", [["equal", "Equal for everyone"], ["custom", "Custom per player"]], s.oddsMode)}
+      ${custom && k > 0 ? `<div class="odds-list">${rows}</div>${note}
+        <div class="row-between"><p class="muted small">Steps of 10%. Shared total: ${k * 100}%.</p><button type="button" class="link-btn" data-act="oddsReset">Reset all to auto</button></div>` : ""}
     </section>`;
   }
 
@@ -632,6 +746,8 @@
     { section: "Roles" },
     { key: "who", title: "Who can be an impostor?", help: "The first speaker has no clues to copy from, which is brutal for an impostor. Protecting the first one or two seats keeps it fair.",
       options: [["any", "Anyone"], ["notFirst", "Not the first player"], ["notFirstTwo", "Not the first two players"]] },
+    { key: "noRepeat", title: "No repeat impostors", help: "Whoever was an impostor last game won't be one in the next game, unless the group is too small to avoid it. Turn it off for pure luck (or for exactly the custom chances you set).",
+      options: [["on", "On"], ["off", "Off"]] },
     { key: "wordHints", title: "Explain the word on each card", help: "Shows a one-line description under the secret word, like <b>Malatang: spicy soup where you pick your own skewers</b>. Handy when not everyone knows every word. Mr. White still gets nothing.",
       options: [["on", "Yes, explain it"], ["off", "No, just the word"]] },
     { key: "knowRole", title: "Do Infiltrators know they are Infiltrators?", when: () => roleCounts().inf > 0, help: "<b>Yes:</b> their card says Infiltrator, so they know to blend in. <b>No:</b> everyone just sees a word, and Infiltrators have to work out from the clues that their word is the odd one out.",
@@ -1192,6 +1308,10 @@
         <dl class="roles">${Object.values(STYLES).map((s) => `<div><dt class="strong">${s.name}</dt><dd>${s.how}</dd></div>`).join("")}</dl>
       </section>
       <section class="card">
+        <h2 class="h2">🎲 Who becomes the impostor?</h2>
+        <p>By default everyone has the same chance, and nobody is the impostor two games in a row. In the Roles step you can switch to <b>Custom per player</b> and set each player's chance, like <b>Alex: Spy 20% · Safe 80%</b> and <b>Sam: Spy 70% · Safe 30%</b>. With one impostor the chances add up to 100%, so anyone left on auto shares the rest. 0% means never.</p>
+      </section>
+      <section class="card">
         <h2 class="h2">💥 Kamikaze</h2>
         <p>Sure you know who the impostor is? During any round, tap <b>Kamikaze</b>, pick yourself and point at your suspect. You're betting your life:</p>
         <ul class="bullets">
@@ -1378,6 +1498,23 @@
       save(); render();
     },
     autoCounts: () => { data.settings.countMode = "auto"; save(); render(); },
+    odds: (el) => {
+      const s = data.settings; const players = currentPlayers(); const i = Number(el.dataset.i); const p = players[i]; const d = Number(el.dataset.d);
+      if (!p) return;
+      const { inf, blank } = roleCounts(); const k = inf + blank;
+      const odds = (data.odds = data.odds || {});
+      const cur = odds[p.name] != null ? odds[p.name] : Math.round(playerChances(players, k, s)[i] * 10) * 10;
+      const others = players.reduce((a, q, j) => a + (j !== i && j >= lockedOut(s) && odds[q.name] != null ? odds[q.name] : 0), 0);
+      const max = Math.max(0, Math.min(100, k * 100 - others));
+      let next = Math.max(0, Math.min(100, cur + d));
+      if (d > 0 && next > max) {
+        if (cur >= max) return toast(`The chances already add up to ${k * 100}%. Lower someone else first.`);
+        next = max;
+      }
+      odds[p.name] = next; save(); render();
+    },
+    oddsAuto: (el) => { const p = currentPlayers()[Number(el.dataset.i)]; if (p && data.odds) delete data.odds[p.name]; save(); render(); },
+    oddsReset: () => { data.odds = {}; save(); render(); },
 
     /* settings */
     set: (el) => {
